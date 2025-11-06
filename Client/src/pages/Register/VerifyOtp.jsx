@@ -28,7 +28,7 @@ export default function VerifyOtp() {
                 code: otp,
             });
 
-            // Save to localStorage + Context
+            // Save token + user info
             const userData = {
                 token: data.token,
                 user: data.user,
@@ -36,7 +36,7 @@ export default function VerifyOtp() {
             login(userData);
 
             alert(data.message || "Email verified successfully!");
-            console.log(userData)
+            console.log(userData);
             navigate("/Dashboard");
         } catch (err) {
             console.error(err.response?.data || err.message);
@@ -48,6 +48,7 @@ export default function VerifyOtp() {
 
     return (
         <div className="flex flex-col md:flex-row min-h-screen">
+            {/* Left Image Section (Hidden on small screens) */}
             <div className="hidden md:block md:w-1/2">
                 <img
                     src="/assets/storePic.jpg"
@@ -56,23 +57,28 @@ export default function VerifyOtp() {
                 />
             </div>
 
-            <div className="w-full md:w-1/2 flex flex-col p-8 md:p-10 bg-white justify-center items-center text-center">
-                <div className="flex flex-col justify-center items-center w-full max-w-sm">
-                    <h3 className="text-2xl font-semibold mb-2">Verify Your Account</h3>
-                    <span className="text-gray-600 mb-8 text-sm md:text-base">
+            {/* Right Content Section */}
+            <div className="w-full md:w-1/2 flex flex-col p-6 sm:p-8 md:p-10 bg-white justify-center items-center text-center">
+                <div className="flex flex-col justify-center items-center w-full max-w-sm sm:max-w-md">
+                    <h3 className="text-2xl sm:text-3xl font-semibold mb-2 text-gray-800">
+                        Verify Your Account
+                    </h3>
+                    <span className="text-gray-600 mb-8 text-sm sm:text-base">
                         Enter the 4-digit OTP sent to your email address
                     </span>
 
                     <form onSubmit={handleSubmit} className="w-full space-y-4">
+                        {/* Email Input */}
                         <input
                             type="email"
                             placeholder="Enter your registered email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
+                            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400 text-sm sm:text-base"
                             required
                         />
 
+                        {/* OTP Input */}
                         <input
                             type="text"
                             placeholder="Enter 4-digit OTP"
@@ -83,32 +89,36 @@ export default function VerifyOtp() {
                                     setOtp(e.target.value);
                             }}
                             maxLength={4}
-                            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400 text-center tracking-widest text-lg"
+                            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400 text-center tracking-widest text-lg sm:text-xl"
                             required
                         />
 
+                        {/* Error Message */}
                         {error && <p className="text-red-500 text-sm">{error}</p>}
 
+                        {/* Submit Button */}
                         <button
                             type="submit"
-                            className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition"
+                            className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-medium"
                             disabled={loading}
                         >
                             {loading ? "Verifying..." : "Verify OTP"}
                         </button>
                     </form>
 
+                    {/* Divider */}
                     <div className="my-6 w-full h-px bg-gray-200" />
 
-                    <p className="text-gray-600 text-sm">
+                    {/* Resend OTP */}
+                    <p className="text-gray-600 text-sm sm:text-base">
                         Didn’t receive the code?{" "}
-                        <a
-                            href="#"
+                        <button
+                            type="button"
                             onClick={() => alert("Resend OTP feature coming soon!")}
                             className="text-green-600 font-medium hover:underline"
                         >
                             Resend OTP
-                        </a>
+                        </button>
                     </p>
                 </div>
             </div>
