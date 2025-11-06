@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+
+@layer components {
+    .signin {
+        @apply bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition;
+    }
+
+    .contentSection {
+        @apply py-28 md:py-10 w-full md:w-1/2 flex flex-col p-8 md:p-10 relative bg-white justify-center items-center text-center
+    }
+}
