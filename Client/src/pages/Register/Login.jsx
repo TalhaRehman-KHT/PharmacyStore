@@ -1,16 +1,44 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+import axios from "axios";
+import { useNavigate, Link } from "react-router-dom";
+import { AuthContext } from "../../context/AuthContext.jsx";
 
 export default function Login() {
     const [form, setForm] = useState({ email: "", password: "" });
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    const navigate = useNavigate();
+    const { login } = useContext(AuthContext);
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log("Login attempt:", form);
-        // Later you’ll call your API here (e.g., axios.post('/auth/login', form))
+        setError("");
+        setLoading(true);
+
+        try {
+            const { data } = await axios.post("http://localhost:5000/api/auth/login", form);
+
+            // Save user + token in Context and localStorage
+            login({
+                token: data.token,
+                user: data.user,
+            });
+
+            alert("Login successful!");
+
+            navigate("/Dashboard");
+            console.log(data);
+        } catch (err) {
+            console.error(err.response?.data || err.message);
+            setError(err.response?.data?.message || "Invalid email or password");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -24,9 +52,8 @@ export default function Login() {
                 />
             </div>
 
-            {/* Right Content Section */}
-            <div className="w-full md:w-1/2 flex flex-col p-8 md:p-10 relative bg-white justify-center items-center text-center">
-                {/* Form Section */}
+            {/* Right Section */}
+            <div className="w-full md:w-1/2 flex flex-col p-8 md:p-10 bg-white justify-center items-center text-center">
                 <div className="flex flex-col justify-center items-center w-full max-w-sm">
                     <h3 className="text-2xl font-semibold mb-2">Welcome Back!</h3>
                     <span className="text-gray-600 mb-8 text-sm md:text-base">
@@ -34,7 +61,6 @@ export default function Login() {
                     </span>
 
                     <form onSubmit={handleSubmit} className="w-full space-y-4">
-                        {/* Email Input */}
                         <input
                             type="email"
                             name="email"
@@ -45,7 +71,6 @@ export default function Login() {
                             required
                         />
 
-                        {/* Password Input */}
                         <input
                             type="password"
                             name="password"
@@ -56,25 +81,29 @@ export default function Login() {
                             required
                         />
 
-                        {/* Login Button */}
+                        {error && <p className="text-red-500 text-sm">{error}</p>}
+
                         <button
                             type="submit"
                             className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition"
+                            disabled={loading}
                         >
-                            Login
+                            {loading ? "Logging in..." : "Login"}
                         </button>
                     </form>
 
-                    {/* Divider */}
-                    <div className="my-6 w-full h-px bg-gray-200" />
+                    <div className="my-4 w-full h-px bg-gray-200" />
 
-                    {/* Create Account Link */}
+                    <Link
+                        to="/forgot-password"
+                        className="text-green-600 font-medium hover:underline mb-3"
+                    >
+                        Forgot Password?
+                    </Link>
+
                     <p className="text-gray-600 text-sm">
                         Don’t have an account?{" "}
-                        <a
-                            href="/register"
-                            className="text-green-600 font-medium hover:underline"
-                        >
+                        <a href="/register" className="text-green-600 font-medium hover:underline">
                             Create new account
                         </a>
                     </p>

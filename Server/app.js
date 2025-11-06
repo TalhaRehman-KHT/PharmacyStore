@@ -1,12 +1,19 @@
 import express from "express";
+import dotenv from "dotenv";
 import cors from "cors";
 import authRoutes from "./src/Routes/authRoutes.js";
 import { pool } from "./src/Config/db.js";
-
 const app = express();
 
-// middlewares
-app.use(cors());
+dotenv.config();
+
+app.use(
+    cors({
+        origin: process.env.CLIENT_URL || "http://localhost:5173",
+        credentials: true,
+    })
+);
+
 app.use(express.json());
 
 // basic route

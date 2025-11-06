@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+// src/pages/Register.jsx
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function Register() {
     const [form, setForm] = useState({
@@ -6,15 +9,60 @@ export default function Register() {
         email: "",
         password: "",
     });
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // read role from query string ?role=vendor
+    const [role, setRole] = useState("");
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const r = params.get("role") || "";
+        setRole(r);
+    }, [location.search]);
 
     const handleChange = (e) => {
+        setError("");
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log("Register attempt:", form);
-        // Later: axios.post("/auth/register", form)
+        setError("");
+
+        // basic validation
+        if (form.password !== confirmPassword) {
+            setError("Passwords do not match");
+            return;
+        }
+        if (form.password.length < 6) {
+            setError("Password must be at least 6 characters");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            // send to your backend register route (as requested)
+            const payload = { name: form.name, email: form.email, password: form.password, role };
+
+            const { data } = await axios.post(
+                "http://localhost:5000/api/auth/register",
+                payload
+            );
+
+            // success message - backend should instruct to check email for OTP
+            alert(data.message || "Registered successfully. Check your email for OTP to verify.");
+            // optionally redirect to login or verification page
+            navigate("/verify-otp");
+        } catch (err) {
+            console.error("Register error:", err.response?.data || err.message);
+            setError(err.response?.data?.message || err.response?.data?.error || "Registration failed");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -38,6 +86,12 @@ export default function Register() {
                     <span className="text-gray-600 mb-8 text-sm md:text-base">
                         Join our pharmacy store community
                     </span>
+
+                    {role && (
+                        <div className="mb-3 text-sm text-gray-600">
+                            Registering as: <strong>{role}</strong>
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmit} className="w-full space-y-4">
                         {/* Name Input */}
@@ -73,12 +127,30 @@ export default function Register() {
                             required
                         />
 
+                        {/* Confirm Password */}
+                        <input
+                            type="password"
+                            name="confirmPassword"
+                            placeholder="Confirm Password"
+                            value={confirmPassword}
+                            onChange={(e) => {
+                                setError("");
+                                setConfirmPassword(e.target.value);
+                            }}
+                            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
+                            required
+                        />
+
+                        {/* Inline error */}
+                        {error && <p className="text-red-500 text-sm">{error}</p>}
+
                         {/* Create Account Button */}
                         <button
                             type="submit"
                             className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition"
+                            disabled={loading}
                         >
-                            Create Account
+                            {loading ? "Creating..." : "Create Account"}
                         </button>
                     </form>
 
