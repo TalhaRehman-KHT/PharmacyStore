@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import axiosInstance from "../../api/axios.js";
 
 export default function ResetPassword() {
     const [searchParams] = useSearchParams();
@@ -30,7 +31,7 @@ export default function ResetPassword() {
         setMessage("");
 
         try {
-            const { data } = await axios.post("http://localhost:5000/api/auth/reset-password", {
+            const { data } = await axiosInstance.post("/api/auth/reset-password", {
                 token,
                 newPassword: password,
             });

@@ -2,6 +2,7 @@ import React, { useState, useContext } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext.jsx";
+import axiosInstance from "../../api/axios.js";
 
 export default function VerifyOtp() {
     const [email, setEmail] = useState("");
@@ -23,7 +24,7 @@ export default function VerifyOtp() {
 
         setLoading(true);
         try {
-            const { data } = await axios.post("http://localhost:5000/api/auth/verify-otp", {
+            const { data } = await axiosInstance.post("/api/auth/verify-otp", {
                 email,
                 code: otp,
             });

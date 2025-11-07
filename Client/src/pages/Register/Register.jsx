@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import axiosInstance from "../../api/axios";
 
 export default function Register() {
     const [form, setForm] = useState({ name: "", email: "", password: "" });
@@ -33,7 +34,7 @@ export default function Register() {
         setLoading(true);
         try {
             const payload = { ...form, role };
-            const { data } = await axios.post("http://localhost:5000/api/auth/register", payload);
+            const { data } = await axiosInstance.post("/api/auth/register", payload);
             alert(data.message || "Registered successfully. Check your email for OTP.");
             navigate("/verify-otp");
         } catch (err) {
@@ -134,7 +135,7 @@ export default function Register() {
 
                     {/* <div className="my-6 w-full h-px bg-gray-200" /> */}
 
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-gray-600 text-sm my-1">
                         Already have an account?{" "}
                         <a href="/login" className="text-green-600 font-medium hover:underline">
                             Login

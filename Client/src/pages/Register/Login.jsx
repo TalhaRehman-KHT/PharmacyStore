@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { AuthContext } from "../../context/AuthContext.jsx";
+import axiosInstance from "../../api/axios.js";
 
 export default function Login() {
     const [form, setForm] = useState({ email: "", password: "" });
@@ -23,7 +24,7 @@ export default function Login() {
         setLoading(true);
 
         try {
-            const { data } = await axios.post("http://localhost:5000/api/auth/login", form);
+            const { data } = await axiosInstance.post("/api/auth/login", form);
             login({ token: data.token, user: data.user });
             alert("Login successful!");
 
