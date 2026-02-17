@@ -1,128 +1,106 @@
-import React, { useState, useContext } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import { AuthContext } from "../../context/AuthContext.jsx";
-import axiosInstance from "../../api/axios.js";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { verifyOTP } from "../../lib/authService.js";
 
 export default function VerifyOtp() {
-    const [email, setEmail] = useState("");
-    const [otp, setOtp] = useState("");
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
+  const location = useLocation();
+  const stateEmail = location.state?.email ?? "";
+  const stateRole = location.state?.role ?? "user";
 
-    const { login } = useContext(AuthContext);
-    const navigate = useNavigate();
+  const [email, setEmail] = useState(stateEmail);
+  const [otp, setOtp] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError("");
+  const navigate = useNavigate();
 
-        if (otp.length !== 4) {
-            setError("OTP must be 4 digits.");
-            return;
-        }
+  useEffect(() => {
+    if (stateEmail) setEmail(stateEmail);
+  }, [stateEmail]);
 
-        setLoading(true);
-        try {
-            const { data } = await axiosInstance.post("/api/auth/verify-otp", {
-                email,
-                code: otp,
-            });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
 
-            // Save token + user info
-            const userData = {
-                token: data.token,
-                user: data.user,
-            };
-            login(userData);
+    if (otp.length !== 6) {
+      setError("OTP must be 6 digits.");
+      return;
+    }
 
-            alert(data.message || "Email verified successfully!");
-            console.log(userData);
-            navigate("/Dashboard");
-        } catch (err) {
-            console.error(err.response?.data || err.message);
-            setError(err.response?.data?.message || "Invalid OTP or Email");
-        } finally {
-            setLoading(false);
-        }
-    };
+    setLoading(true);
+    try {
+      await verifyOTP({
+        email: email.trim(),
+        otpCode: otp,
+        otpType: "email_verification",
+      });
 
-    return (
-        <div className="flex flex-col md:flex-row min-h-screen">
-            {/* Left Image Section (Hidden on small screens) */}
-            <div className="hidden md:block md:w-1/2">
-                <img
-                    src="/assets/storePic.jpg"
-                    alt="Pharmacy"
-                    className="w-full h-full object-cover"
-                />
-            </div>
+      const loginPath = stateRole === "vendor" ? "/vendor/login" : "/user/login";
+      navigate(loginPath, { state: { message: "Email verified. You can log in now." } });
+    } catch (err) {
+      setError(err.message || "Invalid or expired OTP.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            {/* Right Content Section */}
-            <div className="w-full md:w-1/2 flex flex-col p-6 sm:p-8 md:p-10 bg-white justify-center items-center text-center">
-                <div className="flex flex-col justify-center items-center w-full max-w-sm sm:max-w-md">
-                    <h3 className="text-2xl sm:text-3xl font-semibold mb-2 text-gray-800">
-                        Verify Your Account
-                    </h3>
-                    <span className="text-gray-600 mb-8 text-sm sm:text-base">
-                        Enter the 4-digit OTP sent to your email address
-                    </span>
+  const displayEmail = email;
 
-                    <form onSubmit={handleSubmit} className="w-full space-y-4">
-                        {/* Email Input */}
-                        <input
-                            type="email"
-                            placeholder="Enter your registered email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400 text-sm sm:text-base"
-                            required
-                        />
+  return (
+    <div className="flex flex-col md:flex-row min-h-screen">
+      <div className="hidden md:block md:w-1/2">
+        <img src="/assets/storePic.jpg" alt="Pharmacy" className="w-full h-full object-cover" />
+      </div>
 
-                        {/* OTP Input */}
-                        <input
-                            type="text"
-                            placeholder="Enter 4-digit OTP"
-                            value={otp}
-                            onChange={(e) => {
-                                setError("");
-                                if (e.target.value.length <= 4 && /^[0-9]*$/.test(e.target.value))
-                                    setOtp(e.target.value);
-                            }}
-                            maxLength={4}
-                            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400 text-center tracking-widest text-lg sm:text-xl"
-                            required
-                        />
+      <div className="w-full md:w-1/2 flex flex-col p-6 sm:p-8 md:p-10 bg-white justify-center items-center text-center">
+        <div className="flex flex-col justify-center items-center w-full max-w-sm sm:max-w-md">
+          <h3 className="text-2xl sm:text-3xl font-semibold mb-2 text-gray-800">
+            Verify Your Email
+          </h3>
+          <span className="text-gray-600 mb-8 text-sm sm:text-base">
+            Enter the 6-digit OTP sent to your email
+          </span>
 
-                        {/* Error Message */}
-                        {error && <p className="text-red-500 text-sm">{error}</p>}
+          <form onSubmit={handleSubmit} className="w-full space-y-4">
+            <input
+              type="email"
+              placeholder="Your registered email"
+              value={displayEmail}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400 text-sm sm:text-base"
+              required
+            />
 
-                        {/* Submit Button */}
-                        <button
-                            type="submit"
-                            className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-medium"
-                            disabled={loading}
-                        >
-                            {loading ? "Verifying..." : "Verify OTP"}
-                        </button>
-                    </form>
+            <input
+              type="text"
+              placeholder="Enter 6-digit OTP"
+              value={otp}
+              onChange={(e) => {
+                setError("");
+                if (e.target.value.length <= 6 && /^[0-9]*$/.test(e.target.value))
+                  setOtp(e.target.value);
+              }}
+              maxLength={6}
+              className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400 text-center tracking-widest text-lg sm:text-xl"
+              required
+            />
 
-                    {/* Divider */}
-                    <div className="my-6 w-full h-px bg-gray-200" />
+            {error && <p className="text-red-500 text-sm">{error}</p>}
 
-                    {/* Resend OTP */}
-                    <p className="text-gray-600 text-sm sm:text-base">
-                        Didn’t receive the code?{" "}
-                        <button
-                            type="button"
-                            onClick={() => alert("Resend OTP feature coming soon!")}
-                            className="text-green-600 font-medium hover:underline"
-                        >
-                            Resend OTP
-                        </button>
-                    </p>
-                </div>
-            </div>
+            <button
+              type="submit"
+              className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-medium"
+              disabled={loading}
+            >
+              {loading ? "Verifying..." : "Verify OTP"}
+            </button>
+          </form>
+
+          <p className="text-gray-600 text-sm sm:text-base mt-4">
+            Didn't receive the code? Check your spam folder or log in and request a new OTP later.
+          </p>
         </div>
-    );
+      </div>
+    </div>
+  );
 }
