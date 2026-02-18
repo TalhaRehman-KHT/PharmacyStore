@@ -11,6 +11,10 @@ import ForgotPassword from "./pages/Register/ForgotPassword.jsx";
 import VerifyResetOtp from "./pages/Register/VerifyResetOtp.jsx";
 import ResetPassword from "./pages/Register/ResetPassword.jsx";
 import VendorDashboard from "./pages/Dashboard/VendorDashboard.jsx";
+import VendorOrders from "./pages/Dashboard/VendorOrders.jsx";
+import VendorMedicine from "./pages/Dashboard/VendorMedicine.jsx";
+import VendorReports from "./pages/Dashboard/VendorReports.jsx";
+import VendorSettings from "./pages/Dashboard/VendorSettings.jsx";
 import UserDashboard from "./pages/Dashboard/UserDashboard.jsx";
 
 function App() {
@@ -67,6 +71,38 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["vendor", "admin"]}>
                 <VendorDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vendor/orders"
+            element={
+              <ProtectedRoute allowedRoles={["vendor", "admin"]}>
+                <VendorOrders />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vendor/medicine"
+            element={
+              <ProtectedRoute allowedRoles={["vendor", "admin"]}>
+                <VendorMedicine />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vendor/reports"
+            element={
+              <ProtectedRoute allowedRoles={["vendor", "admin"]}>
+                <VendorReports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vendor/settings"
+            element={
+              <ProtectedRoute allowedRoles={["vendor", "admin"]}>
+                <VendorSettings />
               </ProtectedRoute>
             }
           />
