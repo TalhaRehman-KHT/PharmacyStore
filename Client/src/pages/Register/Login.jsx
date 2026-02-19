@@ -34,7 +34,11 @@ export default function Login({ role = "user" }) {
     setLoading(true);
 
     try {
-      const userData = await signIn({ email: form.email, password: form.password });
+      const userData = await signIn({
+        email: form.email,
+        password: form.password,
+        allowedRoles,
+      });
       if (!allowedRoles.includes(userData.role)) {
         setError(
           isVendorFlow

@@ -16,6 +16,11 @@ import VendorMedicine from "./pages/Dashboard/VendorMedicine.jsx";
 import VendorReports from "./pages/Dashboard/VendorReports.jsx";
 import VendorSettings from "./pages/Dashboard/VendorSettings.jsx";
 import UserDashboard from "./pages/Dashboard/UserDashboard.jsx";
+import UserShop from "./pages/User/UserShop.jsx";
+import UserCart from "./pages/User/UserCart.jsx";
+import UserHealth from "./pages/User/UserHealth.jsx";
+import UserProfile from "./pages/User/UserProfile.jsx";
+import UserOrders from "./pages/User/UserOrders.jsx";
 
 function App() {
   return (
@@ -111,6 +116,46 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["user", "doctor"]}>
                 <UserDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/shop"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserShop />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/cart"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserCart />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/health"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserHealth />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/profile"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserProfile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/orders"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserOrders />
               </ProtectedRoute>
             }
           />

@@ -91,21 +91,33 @@ export async function signUp({
   return toUserModel(userRow);
 }
 
-/** Sign in: same as my_fyp CustomAuthService — fetch user by email, verify password client-side (salt:hash). */
-export async function signIn({ email, password }) {
+/**
+ * Sign in: same as my_fyp CustomAuthService — fetch user by email AND role.
+ * Pass role for vendor flow ("vendor") or user flow ("user").
+ * Or pass allowedRoles: ["vendor","admin"] or ["user","doctor"] to support admin/doctor.
+ */
+export async function signIn({ email, password, role, allowedRoles }) {
   const emailLower = email.trim().toLowerCase();
 
-  const { data: userRow, error: fetchError } = await supabase
+  const rolesToMatch = allowedRoles ?? (role ? [role] : null);
+  if (!rolesToMatch?.length) {
+    throw new Error("Role or allowedRoles is required for sign in.");
+  }
+
+  // Get user by email AND role - separate accounts per role (matches my_fyp)
+  const { data: rows, error: fetchError } = await supabase
     .from("users")
     .select("*")
     .eq("email", emailLower)
-    .maybeSingle();
+    .in("role", rolesToMatch)
+    .limit(2);
 
   if (fetchError) {
     throw new Error(fetchError.message || "Invalid email or password.");
   }
+  const userRow = rows?.length === 1 ? rows[0] : null;
   if (!userRow) {
-    throw new Error("Invalid email or password.");
+    throw new Error("Account not found. Please use the correct login.");
   }
 
   const storedHash = userRow.password_hash;

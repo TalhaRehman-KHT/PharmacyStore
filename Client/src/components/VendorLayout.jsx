@@ -67,7 +67,7 @@ export default function VendorLayout({ children }) {
 
       <main className="flex-1 min-w-0 flex flex-col">
         {/* Header – white, subtle border like my_fyp */}
-        <header className="bg-white border-b border-border px-6 py-4 flex items-center justify-end shadow-sm">
+        <header className="bg-white border-b border-border px-4 sm:px-6 py-3 flex items-center justify-end shadow-sm">
           <div className="flex items-center gap-2">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center text-primary-green font-semibold text-sm"

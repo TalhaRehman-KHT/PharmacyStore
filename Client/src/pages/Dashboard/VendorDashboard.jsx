@@ -123,14 +123,14 @@ export default function VendorDashboard() {
   return (
     <VendorLayout>
       <div className="min-h-full">
-        <div className="px-6 py-6 pb-8 max-w-7xl mx-auto">
+        <div className="px-4 sm:px-6 py-4 pb-6 max-w-7xl mx-auto">
           {/* 1) Overview: Total Medicines, Customer Orders, Low Stock, Total Revenue */}
-          <h2 className="text-xl font-bold text-text-primary mb-4">Overview</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <h2 className="text-xl font-bold text-text-primary mb-3">Overview</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
             {overviewCards.map(({ label, value, icon: Icon, style: s }) => (
               <div
                 key={label}
-                className="rounded-[20px] p-5 border shadow-[0_4px_10px_var(--color-card-shadow)] transition-shadow hover:shadow-md"
+                className="rounded-xl p-4 border shadow-[0_4px_10px_var(--color-card-shadow)] transition-shadow hover:shadow-md"
                 style={{
                   borderColor: s.border,
                   background: s.bg,
@@ -155,8 +155,8 @@ export default function VendorDashboard() {
           </div>
 
           {/* 2) Orders chart: Day / Week / Month */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden mb-8">
-            <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden mb-5">
+            <div className="px-4 py-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="w-10 h-10 rounded-xl bg-primary-green/10 flex items-center justify-center">
                   <TrendingUp className="w-5 h-5 text-primary-green" />
@@ -183,8 +183,8 @@ export default function VendorDashboard() {
                 ))}
               </div>
             </div>
-            <div className="p-4 sm:p-6">
-              <div className="h-64 sm:h-72 w-full">
+            <div className="p-4">
+              <div className="h-56 sm:h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={chartData}
@@ -228,7 +228,7 @@ export default function VendorDashboard() {
           </div>
 
           {/* 3) Recent Customer Orders */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-bold text-text-primary">
               Recent Customer Orders
             </h2>
@@ -239,7 +239,7 @@ export default function VendorDashboard() {
               View All
             </Link>
           </div>
-          <div className="bg-white rounded-2xl border border-border shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden mb-8">
+          <div className="bg-white rounded-xl border border-border shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden mb-5">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
