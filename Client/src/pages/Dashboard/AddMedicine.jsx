@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Pill, Upload, Package } from "lucide-react";
+import axiosInstance from "../../api/axios.js";
 
 const inputClass =
     "w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent";
@@ -22,6 +23,9 @@ export default function AddMedicine() {
         sellingPrice: "",
     });
     const [imagePreview, setImagePreview] = useState(null);
+    const [medicineId, setMedicineId] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
 
     const handleMedicineChange = (e) => {
         const { name, value } = e.target;
@@ -41,15 +45,53 @@ export default function AddMedicine() {
         setBatch((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleMedicineSubmit = (e) => {
+    const handleMedicineSubmit = async (e) => {
         e.preventDefault();
-        setStep(2);
+        setLoading(true);
+        setError("");
+        try {
+            const payload = {
+                medicineName: medicine.medicineName.trim(),
+                salt: medicine.salt?.trim() || null,
+                manufacturer: medicine.manufacturer?.trim() || null,
+                description: medicine.description?.trim() || null,
+            };
+            const { data } = await axiosInstance.post("/api/vendor/add-medicine", payload);
+            setMedicineId(data.medicine?.id);
+            setStep(2);
+        } catch (err) {
+            setError(err.response?.data?.message || "Failed to add medicine");
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleBatchSubmit = (e) => {
+    const handleBatchSubmit = async (e) => {
         e.preventDefault();
-        // No backend - could show success message or reset
-        alert("Medicine and batch added successfully!");
+        if (!medicineId) {
+            setError("Medicine not saved. Please go back and try again.");
+            return;
+        }
+        setLoading(true);
+        setError("");
+        try {
+            const payload = {
+                medicineId,
+                batchNumber: batch.batchNumber.trim(),
+                quantity: parseInt(batch.quantity, 10),
+                manufactureDate: batch.manufactureDate,
+                expiryDate: batch.expiryDate,
+                purchasePrice: parseFloat(batch.purchasePrice),
+                sellingPrice: parseFloat(batch.sellingPrice),
+            };
+            await axiosInstance.post("/api/vendor/add-batch", payload);
+            alert("Medicine and batch added successfully!");
+            handleAddAnotherMedicine();
+        } catch (err) {
+            setError(err.response?.data?.message || "Failed to add batch");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleAddAnotherBatch = () => {
@@ -65,6 +107,7 @@ export default function AddMedicine() {
     };
 
     const handleAddAnotherMedicine = () => {
+        setMedicineId(null);
         setMedicine({
             medicineName: "",
             salt: "",
@@ -82,6 +125,7 @@ export default function AddMedicine() {
         });
         setImagePreview(null);
         setStep(1);
+        setError("");
     };
 
     return (
@@ -123,6 +167,12 @@ export default function AddMedicine() {
                     Batch Info
                 </div>
             </div>
+
+            {error && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-700 text-sm">
+                    {error}
+                </div>
+            )}
 
             {step === 1 ? (
                 <form
@@ -239,9 +289,10 @@ export default function AddMedicine() {
                     <div className="p-4 md:p-6 border-t border-gray-200 bg-gray-50">
                         <button
                             type="submit"
-                            className="w-full sm:w-auto px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                            disabled={loading}
+                            className="w-full sm:w-auto px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-70"
                         >
-                            Continue to Batch
+                            {loading ? "Saving..." : "Continue to Batch"}
                         </button>
                     </div>
                 </form>
@@ -382,9 +433,10 @@ export default function AddMedicine() {
                         </button>
                         <button
                             type="submit"
-                            className="flex-1 sm:flex-initial px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                            disabled={loading}
+                            className="flex-1 sm:flex-initial px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-70"
                         >
-                            Save & Finish
+                            {loading ? "Saving..." : "Save & Finish"}
                         </button>
                     </div>
                 </form>

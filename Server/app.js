@@ -2,7 +2,11 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import authRoutes from "./src/Routes/authRoutes.js";
-import { pool } from "./src/Config/db.js";
+import prescriptionRoutes from "./src/Routes/prescriptionRoutes.js";
+import aiRoutes from "./src/Routes/aiRoutes.js";
+import remindersRoutes from "./src/Routes/remindersRoutes.js";
+import vendorRoutes from "./src/Routes/vendorRoutes.js";
+
 const app = express();
 
 dotenv.config();
@@ -34,5 +38,13 @@ app.get("/", (req, res) => {
 
 // mount auth routes
 app.use("/api/auth", authRoutes);
+
+// User-side routes
+app.use("/api/prescription", prescriptionRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/reminders", remindersRoutes);
+
+// Vendor-side routes
+app.use("/api/vendor", vendorRoutes);
 
 export default app;

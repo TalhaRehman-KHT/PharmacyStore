@@ -1,15 +1,19 @@
 import React, { useState, useRef, useEffect } from "react";
-import { User, MessageCircle, Bell, Camera, Upload, Search } from "lucide-react";
+import { Camera, Upload, Search } from "lucide-react";
+import axiosInstance from "../../api/axios.js";
 
 export default function UserDashboard() {
     const [messages, setMessages] = useState([
-        { id: 1, text: "Hi! How can I help you today?", isBot: true },
+        { id: 1, text: "Hi! How can I help you today? Upload a prescription or search for medicine alternatives.", isBot: true },
     ]);
     const [inputValue, setInputValue] = useState("");
     const [prescriptionModalOpen, setPrescriptionModalOpen] = useState(false);
     const [alternativeModalOpen, setAlternativeModalOpen] = useState(false);
     const [medicineName, setMedicineName] = useState("");
     const [uploadedFile, setUploadedFile] = useState(null);
+    const [prescriptionLoading, setPrescriptionLoading] = useState(false);
+    const [alternativeLoading, setAlternativeLoading] = useState(false);
+    const [error, setError] = useState("");
     const chatEndRef = useRef(null);
 
     const scrollToBottom = () => {
@@ -30,36 +34,54 @@ export default function UserDashboard() {
         setInputValue("");
     };
 
-    const handlePrescriptionSubmit = (e) => {
+    const handlePrescriptionSubmit = async (e) => {
         e.preventDefault();
-        if (uploadedFile) {
+        if (!uploadedFile) return;
+        setPrescriptionLoading(true);
+        setError("");
+        try {
+            const formData = new FormData();
+            formData.append("image", uploadedFile);
+            const { data } = await axiosInstance.post("/api/prescription/upload", formData);
             setMessages((prev) => [
                 ...prev,
-                {
-                    id: Date.now(),
-                    text: `Prescription uploaded: ${uploadedFile.name}`,
-                    isBot: false,
-                },
+                { id: Date.now(), text: `Prescription uploaded: ${uploadedFile.name}`, isBot: false },
+                { id: Date.now() + 1, text: "Prescription uploaded successfully! You can view it in your records.", isBot: true },
             ]);
+            setUploadedFile(null);
+            setPrescriptionModalOpen(false);
+        } catch (err) {
+            setError(err.response?.data?.message || "Failed to upload prescription");
+        } finally {
+            setPrescriptionLoading(false);
         }
-        setUploadedFile(null);
-        setPrescriptionModalOpen(false);
     };
 
-    const handleAlternativeSubmit = (e) => {
+    const handleAlternativeSubmit = async (e) => {
         e.preventDefault();
-        if (medicineName.trim()) {
+        const query = medicineName.trim();
+        if (!query) return;
+        setAlternativeLoading(true);
+        setError("");
+        try {
+            const { data } = await axiosInstance.post("/api/ai/alternative", { query });
+            const altList = (data.alternatives || []).map((a) => `${a.name} (${a.salt || "N/A"}) - ${a.manufacturer || "Generic"}`).join(", ");
             setMessages((prev) => [
                 ...prev,
+                { id: Date.now(), text: `Looking for alternatives to: ${query}`, isBot: false },
                 {
-                    id: Date.now(),
-                    text: `Looking for alternatives to: ${medicineName.trim()}`,
-                    isBot: false,
+                    id: Date.now() + 1,
+                    text: altList ? `Alternatives: ${altList}` : "No alternatives found.",
+                    isBot: true,
                 },
             ]);
+            setMedicineName("");
+            setAlternativeModalOpen(false);
+        } catch (err) {
+            setError(err.response?.data?.message || "Failed to get alternatives");
+        } finally {
+            setAlternativeLoading(false);
         }
-        setMedicineName("");
-        setAlternativeModalOpen(false);
     };
 
     return (
@@ -110,7 +132,10 @@ export default function UserDashboard() {
             <div className="flex flex-col sm:flex-row gap-3 mt-4">
                 <button
                     type="button"
-                    onClick={() => setPrescriptionModalOpen(true)}
+                    onClick={() => {
+                        setError("");
+                        setPrescriptionModalOpen(true);
+                    }}
                     className="flex items-center justify-center gap-2 rounded-lg border-2 border-green-600 bg-white px-4 py-3 text-green-600 hover:bg-green-50 transition-colors font-medium"
                 >
                     <Upload size={20} />
@@ -118,7 +143,10 @@ export default function UserDashboard() {
                 </button>
                 <button
                     type="button"
-                    onClick={() => setAlternativeModalOpen(true)}
+                    onClick={() => {
+                        setError("");
+                        setAlternativeModalOpen(true);
+                    }}
                     className="flex items-center justify-center gap-2 rounded-lg border-2 border-green-600 bg-white px-4 py-3 text-green-600 hover:bg-green-50 transition-colors font-medium"
                 >
                     <Search size={20} />
@@ -146,6 +174,11 @@ export default function UserDashboard() {
                             </button>
                         </div>
                         <form onSubmit={handlePrescriptionSubmit} className="p-4">
+                            {error && (
+                                <div className="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-red-700 text-sm">
+                                    {error}
+                                </div>
+                            )}
                             <div className="space-y-3">
                                 <label className="flex flex-col gap-2">
                                     <span className="text-sm font-medium text-gray-700">
@@ -174,7 +207,7 @@ export default function UserDashboard() {
                                             </span>
                                             <input
                                                 type="file"
-                                                accept="image/*,.pdf"
+                                                accept="image/*"
                                                 className="hidden"
                                                 onChange={(e) =>
                                                     setUploadedFile(e.target.files?.[0])
@@ -202,9 +235,10 @@ export default function UserDashboard() {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                                    disabled={prescriptionLoading || !uploadedFile}
+                                    className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-70"
                                 >
-                                    Submit
+                                    {prescriptionLoading ? "Uploading..." : "Submit"}
                                 </button>
                             </div>
                         </form>
@@ -232,6 +266,11 @@ export default function UserDashboard() {
                             </button>
                         </div>
                         <form onSubmit={handleAlternativeSubmit} className="p-4">
+                            {error && (
+                                <div className="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-red-700 text-sm">
+                                    {error}
+                                </div>
+                            )}
                             <label className="block">
                                 <span className="text-sm font-medium text-gray-700">
                                     Medicine name
@@ -257,9 +296,10 @@ export default function UserDashboard() {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                                    disabled={alternativeLoading || !medicineName?.trim()}
+                                    className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-70"
                                 >
-                                    Submit
+                                    {alternativeLoading ? "Searching..." : "Submit"}
                                 </button>
                             </div>
                         </form>

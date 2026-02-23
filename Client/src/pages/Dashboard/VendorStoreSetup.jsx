@@ -50,7 +50,10 @@ export default function VendorStoreSetup() {
             alert(data.message || "Store created successfully!");
             window.location.href = "/dashboard";
         } catch (err) {
-            setError(err.response?.data?.message || "Failed to create store. Please try again.");
+            const res = err.response?.data;
+            const msg = res?.error || res?.message || "Failed to create store. Please try again.";
+            const hint = res?.hint ? ` (${res.hint})` : "";
+            setError(msg + hint);
         } finally {
             setLoading(false);
         }

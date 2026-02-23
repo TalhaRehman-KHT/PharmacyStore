@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Pill, Package, TrendingUp, User } from "lucide-react";
+import { LayoutDashboard, Pill, Package, TrendingUp, User, Store } from "lucide-react";
 import DashboardLayout from "./DashboardLayout.jsx";
 
 const vendorSidebarItems = [
@@ -7,6 +7,11 @@ const vendorSidebarItems = [
         to: "/dashboard",
         label: "Dashboard",
         icon: <LayoutDashboard size={20} />,
+    },
+    {
+        to: "/dashboard/store-setup",
+        label: "Store Setup",
+        icon: <Store size={20} />,
     },
     {
         to: "/dashboard/add-medicine",

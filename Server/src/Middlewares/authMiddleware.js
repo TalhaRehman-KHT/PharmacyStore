@@ -12,7 +12,7 @@ export async function requireAuth(req, res, next) {
         const s = await pool.query('SELECT id FROM sessions WHERE token=$1 AND expires_at > now()', [token]);
         if (!s.rows.length) return res.status(401).json({ message: 'Session expired' });
 
-        req.user = { id: payload.sub, role: payload.role };
+        req.user = { id: payload.sub ?? payload.id, role: payload.role };
         next();
     } catch (err) {
         return res.status(401).json({ message: 'Invalid token' });
