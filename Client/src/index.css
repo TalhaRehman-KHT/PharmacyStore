@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+
+@layer components {
+  .primary {
+    @apply rounded-md bg-green-500 text-white border-none py-2 px-4 hover:bg-green-400 hover:font-semibold;
+  }
+}
