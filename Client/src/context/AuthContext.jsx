@@ -41,6 +41,15 @@ export const AuthProvider = ({ children }) => {
     setStoredUser(null);
   };
 
+  const updateUser = (updates) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const next = { ...prev, ...updates };
+      setStoredUser(next);
+      return next;
+    });
+  };
+
   const userRole = user?.role ?? null;
   const isVendor = userRole === "vendor";
   const isUser = userRole === "user";
@@ -57,6 +66,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         logout,
+        updateUser,
         isAuthenticated: !!user,
         userRole,
         isVendor,

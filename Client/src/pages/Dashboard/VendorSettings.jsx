@@ -2,6 +2,7 @@ import React, { useContext, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import VendorLayout from "../../components/VendorLayout.jsx";
 import { AuthContext } from "../../context/AuthContext.jsx";
+import { updateUserProfile } from "../../lib/authService.js";
 import {
   Store,
   Pencil,
@@ -57,7 +58,7 @@ function SettingRow({ icon: Icon, title, subtitle, iconBg, iconClass, to, onClic
 }
 
 export default function VendorSettings() {
-  const { user, logout } = useContext(AuthContext);
+  const { user, logout, updateUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -69,9 +70,43 @@ export default function VendorSettings() {
     state: user?.state ?? "",
   });
 
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const updated = await updateUserProfile(user.id, {
+        name: editForm.name,
+        phone: editForm.phone,
+        company_name: editForm.company_name,
+        address: editForm.address,
+        city: editForm.city,
+        state: editForm.state,
+      });
+      if (updated) {
+        updateUser({
+          name: updated.name,
+          contactInfo: updated.phone,
+          companyName: updated.company_name,
+          address: updated.address,
+          city: updated.city,
+          state: updated.state,
+        });
+      }
+      setShowEditModal(false);
+    } catch (e) {
+      setSaveError(e?.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleHelpSupport = () => {
@@ -240,6 +275,11 @@ export default function VendorSettings() {
               </button>
             </div>
             <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              {saveError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+                  {saveError}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Name
@@ -343,10 +383,11 @@ export default function VendorSettings() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowEditModal(false)}
-                className="px-5 py-2.5 bg-primary-green text-white rounded-xl font-medium text-sm hover:bg-dark-green transition-colors"
+                onClick={handleSaveProfile}
+                disabled={saving}
+                className="px-5 py-2.5 bg-primary-green text-white rounded-xl font-medium text-sm hover:bg-dark-green transition-colors disabled:opacity-60"
               >
-                Save changes
+                {saving ? "Saving…" : "Save changes"}
               </button>
             </div>
           </div>

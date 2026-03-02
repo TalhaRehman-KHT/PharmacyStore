@@ -28,6 +28,7 @@ function parseCart(row) {
     batchId: i.batch_id ?? i.batchId,
     medicineId: i.medicine_id ?? i.medicineId,
     medicineName: i.medicines?.name ?? "Medicine",
+    imageUrl: i.medicines?.image_url ?? null,
     quantity: i.quantity ?? 0,
     unitPrice: typeof i.unit_price !== "undefined" ? parseFloat(i.unit_price) : parseFloat(i.unitPrice) || 0,
     total: (i.quantity ?? 0) * (parseFloat(i.unit_price ?? i.unitPrice) || 0),
@@ -51,7 +52,7 @@ export async function getCartsForUser(userId) {
       pharmacies ( name ),
       cart_items (
         *,
-        medicines ( name )
+        medicines ( name, image_url )
       )
     `
     )

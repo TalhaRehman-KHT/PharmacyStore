@@ -1,9 +1,10 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext.jsx";
 import UserLayout from "../../components/UserLayout.jsx";
 import { getUserOrders } from "../../lib/userOrderService.js";
 import { getCartsForUser } from "../../lib/userCartService.js";
+import { getCustomerStats } from "../../lib/customerStatsService.js";
 import {
   BarChart,
   Bar,
@@ -19,6 +20,7 @@ import {
   FileText,
   BarChart3,
   ChevronRight,
+  RefreshCw,
 } from "lucide-react";
 
 const CARD_STYLES = {
@@ -71,7 +73,7 @@ export default function UserDashboard() {
   const [activityData, setActivityData] = useState(activityDefaults);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!user?.id) {
       setOrders([]);
       setActivityData(activityDefaults);
@@ -80,21 +82,29 @@ export default function UserDashboard() {
     }
     setLoading(true);
     Promise.all([
-      getUserOrders(user.id, { limit: 20 }),
+      getUserOrders(user.id, { limit: 100 }),
       getCartsForUser(user.id).catch(() => []),
+      getCustomerStats(user.id).catch(() => ({ prescriptions: 0, reminders: 0 })),
     ])
-      .then(([orderList, carts]) => {
+      .then(([orderList, carts, stats]) => {
         setOrders(orderList);
-        const cartItems = carts.reduce((s, c) => s + c.items.reduce((a, i) => a + i.quantity, 0), 0);
+        const cartItems = carts.reduce((s, c) => s + (c.items?.length ?? 0), 0);
         setActivityData([
-          { label: "Prescriptions", value: 0, fill: "#008F0B" },
-          { label: "Reminders", value: 0, fill: "#2859C5" },
+          { label: "Prescriptions", value: stats?.prescriptions ?? 0, fill: "#008F0B" },
+          { label: "Reminders", value: stats?.reminders ?? 0, fill: "#2859C5" },
           { label: "Cart", value: cartItems, fill: "#FF8F6B" },
         ]);
       })
-      .catch(() => setOrders([]))
+      .catch(() => {
+        setOrders([]);
+        setActivityData(activityDefaults);
+      })
       .finally(() => setLoading(false));
   }, [user?.id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const activeCount = orders.filter(
     (o) => o.status !== "cancelled" && o.status !== "completed"
@@ -106,6 +116,18 @@ export default function UserDashboard() {
     <UserLayout>
       <div className="min-h-full">
         <div className="px-4 sm:px-6 py-4 pb-6 max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-gray-900">Home</h1>
+            <button
+              type="button"
+              onClick={() => load()}
+              disabled={loading}
+              className="p-2 rounded-xl text-primary-green hover:bg-primary-green/10 transition-colors disabled:opacity-50"
+              aria-label="Refresh"
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
           <h2 className="text-xl font-bold text-gray-900 mb-3">Overview</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
             <div
@@ -156,27 +178,35 @@ export default function UserDashboard() {
             </div>
             <div className="p-4">
               <div className="h-[160px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={activityData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 11, fill: "#6b7280" }}
-                      axisLine={{ stroke: "#e5e7eb" }}
-                      tickLine={false}
-                    />
-                    <YAxis tick={{ fontSize: 10, fill: "#6b7280" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
-                      formatter={(value, name, props) => [value, props.payload?.label]}
-                    />
-                    <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={32}>
-                      {activityData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill || "#008F0B"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                {activityData.every((d) => d.value === 0) ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-text-secondary">
+                    <BarChart3 className="w-12 h-12 opacity-50 mb-2" />
+                    <p className="text-sm font-medium">No activity data yet</p>
+                    <p className="text-xs mt-1 opacity-80">Scan prescriptions, add reminders or shop</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={activityData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 11, fill: "#6b7280" }}
+                        axisLine={{ stroke: "#e5e7eb" }}
+                        tickLine={false}
+                      />
+                      <YAxis tick={{ fontSize: 10, fill: "#6b7280" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                        formatter={(value, name, props) => [value, props.payload?.label]}
+                      />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={32}>
+                        {activityData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill || "#008F0B"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
@@ -203,7 +233,7 @@ export default function UserDashboard() {
                 return (
                   <Link
                     key={order.id}
-                    to="/user/orders"
+                    to={`/user/orders/${order.id}`}
                     className="flex bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] p-3 items-center gap-3 hover:shadow-md transition-shadow group"
                   >
                     <div

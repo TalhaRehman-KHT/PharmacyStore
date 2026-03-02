@@ -285,3 +285,23 @@ export function setStoredUser(user) {
   if (user) localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
   else localStorage.removeItem(USER_STORAGE_KEY);
 }
+
+/** Update user profile (name, phone, company_name, address, city, state). */
+export async function updateUserProfile(userId, updates) {
+  const allowed = ["name", "phone", "company_name", "address", "city", "state"];
+  const data = {};
+  for (const k of allowed) {
+    if (updates[k] !== undefined) data[k] = updates[k]?.trim?.() ?? updates[k];
+  }
+  if (Object.keys(data).length === 0) return null;
+
+  const { data: row, error } = await supabase
+    .from("users")
+    .update(data)
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return toUserModel(row);
+}

@@ -50,6 +50,26 @@ export async function getUserOrders(userId, { status, limit = 100 } = {}) {
   return (data || []).map(parseOrder);
 }
 
+export async function getUserOrder(userId, orderId) {
+  const { data, error } = await supabase
+    .from("orders")
+    .select(
+      `
+      *,
+      order_items (
+        id, order_id, batch_id, medicine_id, quantity, unit_price, total_price,
+        medicines ( name )
+      )
+    `
+    )
+    .eq("id", orderId)
+    .eq("user_id", userId)
+    .single();
+
+  if (error || !data) return null;
+  return parseOrder(data);
+}
+
 export async function createOrder(userId, pharmacyId, items) {
   let totalAmount = 0;
   for (const item of items) {

@@ -3,81 +3,81 @@ import { Link } from "react-router-dom";
 import UserLayout from "../../components/UserLayout.jsx";
 import { Barcode, RefreshCw, Bell, ChevronRight } from "lucide-react";
 
-const features = [
+const PRESCRIPTION_FEATURES = [
   {
     title: "Scan Prescription",
     subtitle: "Upload & AI reads it in simple language",
     icon: Barcode,
     color: "#008F0B",
-    href: null,
-    comingSoon: true,
+    href: "/user/health/scan-prescription",
   },
   {
     title: "Medicine Alternatives",
-    subtitle: "AI suggests cheaper or better options",
+    subtitle: "Enter name → AI shows details & alternatives",
     icon: RefreshCw,
     color: "#008F0B",
-    href: null,
-    comingSoon: true,
+    href: "/user/health/alternatives",
   },
+];
+
+const HEALTH_FEATURES = [
   {
     title: "Medicine Reminders",
     subtitle: "Never miss a dose with smart alerts",
     icon: Bell,
     color: "#008F0B",
-    href: null,
-    comingSoon: true,
+    href: "/user/health/reminders",
   },
 ];
 
-function FeatureCard({ title, subtitle, icon: Icon, color, href, comingSoon }) {
-  const content = (
-    <div
-      className={`flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] transition-shadow hover:shadow-md ${!comingSoon && href ? "cursor-pointer" : ""}`}
+function FeatureCard({ title, subtitle, icon: Icon, color, href }) {
+  return (
+    <Link
+      to={href}
+      className="group flex items-center gap-4 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-primary-green/20 transition-all duration-200"
     >
       <div
-        className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+        className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105"
         style={{ backgroundColor: `${color}18` }}
       >
-        <Icon className="w-6 h-6" style={{ color }} />
+        <Icon className="w-8 h-8" style={{ color }} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900">{title}</p>
-        <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+        <p className="font-bold text-gray-900 text-lg">{title}</p>
+        <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
       </div>
-      {comingSoon && (
-        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
-          Coming soon
-        </span>
-      )}
-      {!comingSoon && href && <ChevronRight className="w-5 h-5 text-primary-green shrink-0" />}
-    </div>
+      <ChevronRight className="w-6 h-6 text-primary-green shrink-0 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+    </Link>
   );
-
-  if (href && !comingSoon) {
-    return <Link to={href}>{content}</Link>;
-  }
-  return content;
 }
 
 export default function UserHealth() {
   return (
     <UserLayout>
-      <div className="px-4 sm:px-6 py-4 max-w-7xl mx-auto">
-        <h2 className="text-xl font-bold text-gray-900 mb-3">Health</h2>
+      <div className="min-h-full bg-gray-50/50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <header className="mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Health</h1>
+            <p className="text-gray-500 mt-1">Prescription tools and medicine reminders</p>
+          </header>
 
-        <p className="text-base font-bold text-gray-900 mb-2">Prescription Tools</p>
-        <div className="space-y-2 mb-5">
-          {features.slice(0, 2).map((f) => (
-            <FeatureCard key={f.title} {...f} />
-          ))}
-        </div>
+          <section className="mb-10">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Prescription Tools</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {PRESCRIPTION_FEATURES.map((f) => (
+                <FeatureCard key={f.title} {...f} />
+              ))}
+            </div>
+          </section>
 
-        <p className="text-base font-bold text-gray-900 mb-2">Personal Health Support</p>
-        <div className="space-y-2">
-          {features.slice(2).map((f) => (
-            <FeatureCard key={f.title} {...f} />
-          ))}
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Personal Health Support</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+              {HEALTH_FEATURES.map((f) => (
+                <FeatureCard key={f.title} {...f} />
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     </UserLayout>

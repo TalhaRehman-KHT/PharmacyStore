@@ -9,7 +9,7 @@ import {
 } from "../../lib/userCartService.js";
 import { createOrder } from "../../lib/userOrderService.js";
 import { AuthContext } from "../../context/AuthContext.jsx";
-import { ShoppingCart, Minus, Plus, Trash2, CreditCard } from "lucide-react";
+import { ShoppingCart, Minus, Plus, Trash2, CreditCard, Pill } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function UserCart() {
@@ -186,8 +186,16 @@ export default function UserCart() {
                       key={item.id}
                       className="px-4 py-3 flex items-center gap-3 border-t border-gray-100"
                     >
-                      <div className="w-14 h-14 rounded-xl bg-primary-green/10 flex items-center justify-center shrink-0">
-                        <span className="text-2xl">💊</span>
+                      <div className="w-14 h-14 rounded-xl bg-primary-green/10 flex items-center justify-center shrink-0 overflow-hidden">
+                        {item.imageUrl ? (
+                          <img
+                            src={item.imageUrl}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Pill className="w-7 h-7 text-primary-green" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-text-primary">{item.medicineName}</p>

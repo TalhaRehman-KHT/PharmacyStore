@@ -1,6 +1,7 @@
 import React, { useContext } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext.jsx";
+import { useVendorDashboard } from "../context/VendorDashboardContext.jsx";
 import {
   LayoutDashboard,
   Pill,
@@ -8,6 +9,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Store,
 } from "lucide-react";
 
 const navItems = [
@@ -20,6 +22,7 @@ const navItems = [
 
 export default function VendorLayout({ children }) {
   const { user, logout } = useContext(AuthContext);
+  const { pharmacy } = useVendorDashboard();
   const location = useLocation();
 
   return (
@@ -27,7 +30,7 @@ export default function VendorLayout({ children }) {
       {/* Sidebar – my_fyp: sidebarBackground #0D0D0D */}
       <aside className="w-64 min-h-screen bg-sidebar text-white flex flex-col shrink-0">
         <div className="p-4 border-b border-white/10">
-          <Link to="/vendor/dashboard" className="block">
+          <Link to={pharmacy?.id ? "/vendor/dashboard" : "/vendor/create-store"} className="block">
             <img
               src="/assets/logo.png"
               alt="Pharmacy Store"
@@ -36,6 +39,19 @@ export default function VendorLayout({ children }) {
           </Link>
         </div>
         <nav className="flex-1 py-4 px-3 space-y-1">
+          {!pharmacy?.id && (
+            <Link
+              to="/vendor/create-store"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                location.pathname === "/vendor/create-store"
+                  ? "bg-primary-green text-white shadow-lg shadow-primary-green/25"
+                  : "text-gray-400 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <Store className="w-5 h-5 shrink-0" />
+              Create Store
+            </Link>
+          )}
           {navItems.map(({ path, label, icon: Icon }) => {
             const isActive = location.pathname === path;
             return (

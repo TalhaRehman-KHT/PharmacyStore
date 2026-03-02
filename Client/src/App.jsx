@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext.jsx";
+import { VendorDashboardProvider } from "./context/VendorDashboardContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import RedirectIfAuthenticated from "./components/RedirectIfAuthenticated.jsx";
 import "./App.css";
@@ -13,19 +14,29 @@ import ResetPassword from "./pages/Register/ResetPassword.jsx";
 import VendorDashboard from "./pages/Dashboard/VendorDashboard.jsx";
 import VendorOrders from "./pages/Dashboard/VendorOrders.jsx";
 import VendorMedicine from "./pages/Dashboard/VendorMedicine.jsx";
+import VendorExpiringSoon from "./pages/Dashboard/VendorExpiringSoon.jsx";
 import VendorReports from "./pages/Dashboard/VendorReports.jsx";
 import VendorSettings from "./pages/Dashboard/VendorSettings.jsx";
+import VendorOrderDetail from "./pages/Dashboard/VendorOrderDetail.jsx";
+import CreateStore from "./pages/Dashboard/CreateStore.jsx";
 import UserDashboard from "./pages/Dashboard/UserDashboard.jsx";
 import UserShop from "./pages/User/UserShop.jsx";
 import UserCart from "./pages/User/UserCart.jsx";
 import UserHealth from "./pages/User/UserHealth.jsx";
+import UserHealthScanPrescription from "./pages/User/UserHealthScanPrescription.jsx";
+import UserHealthAlternatives from "./pages/User/UserHealthAlternatives.jsx";
+import UserHealthReminders from "./pages/User/UserHealthReminders.jsx";
+import UserHealthRemindersManage from "./pages/User/UserHealthRemindersManage.jsx";
+import UserHealthRemindersAddEdit from "./pages/User/UserHealthRemindersAddEdit.jsx";
 import UserProfile from "./pages/User/UserProfile.jsx";
 import UserOrders from "./pages/User/UserOrders.jsx";
+import UserOrderDetail from "./pages/User/UserOrderDetail.jsx";
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <VendorDashboardProvider>
         <Routes>
           <Route
             path="/"
@@ -88,10 +99,26 @@ function App() {
             }
           />
           <Route
+            path="/vendor/orders/:orderId"
+            element={
+              <ProtectedRoute allowedRoles={["vendor", "admin"]}>
+                <VendorOrderDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/vendor/medicine"
             element={
               <ProtectedRoute allowedRoles={["vendor", "admin"]}>
                 <VendorMedicine />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vendor/expiring-soon"
+            element={
+              <ProtectedRoute allowedRoles={["vendor", "admin"]}>
+                <VendorExpiringSoon />
               </ProtectedRoute>
             }
           />
@@ -108,6 +135,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["vendor", "admin"]}>
                 <VendorSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vendor/create-store"
+            element={
+              <ProtectedRoute allowedRoles={["vendor", "admin"]}>
+                <CreateStore />
               </ProtectedRoute>
             }
           />
@@ -144,6 +179,54 @@ function App() {
             }
           />
           <Route
+            path="/user/health/scan-prescription"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserHealthScanPrescription />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/health/alternatives"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserHealthAlternatives />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/health/reminders"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserHealthReminders />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/health/reminders/manage"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserHealthRemindersManage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/health/reminders/add"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserHealthRemindersAddEdit />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/health/reminders/edit/:id"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserHealthRemindersAddEdit />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/user/profile"
             element={
               <ProtectedRoute allowedRoles={["user", "doctor"]}>
@@ -159,8 +242,17 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/user/orders/:orderId"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserOrderDetail />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </VendorDashboardProvider>
       </AuthProvider>
     </BrowserRouter>
   );
