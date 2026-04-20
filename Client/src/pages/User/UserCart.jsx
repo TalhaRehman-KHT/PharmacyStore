@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import UserLayout from "../../components/UserLayout.jsx";
 import {
   getCartsForUser,
@@ -7,17 +7,18 @@ import {
   removeItem,
   clearCart,
 } from "../../lib/userCartService.js";
-import { createOrder } from "../../lib/userOrderService.js";
+import { createCheckoutSessionForCart } from "../../lib/stripeCheckoutService.js";
 import { AuthContext } from "../../context/AuthContext.jsx";
 import { ShoppingCart, Minus, Plus, Trash2, CreditCard, Pill } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function UserCart() {
   const { user } = useContext(AuthContext);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [carts, setCarts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [payingCartId, setPayingCartId] = useState(null);
   const [updatingIds, setUpdatingIds] = useState(new Set());
   const [clearingIds, setClearingIds] = useState(new Set());
 
@@ -38,6 +39,20 @@ export default function UserCart() {
   useEffect(() => {
     loadCarts();
   }, [user?.id]);
+
+  useEffect(() => {
+    const checkout = searchParams.get("checkout");
+    if (!checkout) return;
+    if (checkout === "success") {
+      toast.success("Payment completed. Your order will update shortly.");
+      loadCarts();
+    } else if (checkout === "cancel") {
+      toast.error("Checkout was cancelled.");
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("checkout");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const grandTotal = carts.reduce((s, c) => s + c.subtotal, 0);
 
@@ -95,33 +110,19 @@ export default function UserCart() {
     }
   }
 
-  async function handleCheckout() {
+  async function handlePayCart(cart) {
     if (!user?.id) {
       toast.error("Please sign in to checkout");
       return;
     }
-    if (carts.length === 0) return;
-
-    setCheckingOut(true);
+    setPayingCartId(cart.id);
     try {
-      let count = 0;
-      for (const cart of carts) {
-        const items = cart.items.map((i) => ({
-          batch_id: i.batchId,
-          medicine_id: i.medicineId,
-          quantity: i.quantity,
-          unit_price: i.unitPrice,
-        }));
-        await createOrder(user.id, cart.pharmacyId, items);
-        await clearCart(cart.id);
-        count++;
-      }
-      loadCarts();
-      toast.success(count > 1 ? `${count} orders placed successfully` : "Order placed successfully");
+      await createCheckoutSessionForCart(cart.id);
     } catch (err) {
-      toast.error(err.message || "Checkout failed");
+      const msg = err?.message || err?.response?.data?.message || "Could not start checkout";
+      toast.error(msg);
     } finally {
-      setCheckingOut(false);
+      setPayingCartId(null);
     }
   }
 
@@ -167,9 +168,9 @@ export default function UserCart() {
                   key={cart.id}
                   className="bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden"
                 >
-                  <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+                  <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100">
                     <span className="font-bold text-text-primary">{cart.pharmacyName}</span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-bold text-primary-green">${cart.subtotal.toFixed(2)}</span>
                       <button
                         type="button"
@@ -245,16 +246,23 @@ export default function UserCart() {
                 <span className="text-lg font-bold text-text-primary">Total</span>
                 <span className="text-2xl font-bold text-primary-green">${grandTotal.toFixed(2)}</span>
               </div>
-              <button
-                type="button"
-                disabled={checkingOut}
-                onClick={handleCheckout}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-5 rounded-xl text-white font-bold text-sm shadow-lg disabled:opacity-70"
-                style={{ background: "linear-gradient(135deg, #008F0B, #007009)" }}
-              >
-                <CreditCard className="w-5 h-5" />
-                {checkingOut ? "Processing..." : "Proceed to Checkout"}
-              </button>
+              {carts.length === 1 ? (
+                <button
+                  type="button"
+                  disabled={payingCartId === carts[0].id}
+                  onClick={() => handlePayCart(carts[0])}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-5 rounded-xl text-white font-bold text-sm shadow-lg disabled:opacity-70"
+                  style={{ background: "linear-gradient(135deg, #008F0B, #007009)" }}
+                >
+                  <CreditCard className="w-5 h-5" />
+                  {payingCartId === carts[0].id ? "Redirecting…" : "Pay"}
+                </button>
+              ) : (
+                <p className="text-sm text-text-secondary text-center">
+                  You have carts from multiple pharmacies. Use <span className="font-semibold">Pay</span> on
+                  each pharmacy block above (one secure payment per store).
+                </p>
+              )}
             </div>
           </>
         )}

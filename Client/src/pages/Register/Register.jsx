@@ -41,10 +41,11 @@ export default function Register({ role = "user" }) {
         email: form.email,
         password: form.password,
         name: form.name,
-        phone: form.phone || null,
+        // Vendor store details are collected in Create Store, not at signup.
+        phone: isVendor ? null : form.phone || null,
         role: role || "user",
-        companyName: role === "vendor" ? form.company_name || null : null,
-        address: role === "vendor" ? form.address || null : null,
+        companyName: null,
+        address: null,
       });
 
       alert("Account created. Please verify your email with the OTP sent to your inbox.");
@@ -99,28 +100,8 @@ export default function Register({ role = "user" }) {
               value={form.phone}
               onChange={handleChange}
               className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
+              style={{ display: isVendor ? "none" : undefined }}
             />
-
-            {isVendor && (
-              <>
-                <input
-                  type="text"
-                  name="company_name"
-                  placeholder="Company Name"
-                  value={form.company_name}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-                <input
-                  type="text"
-                  name="address"
-                  placeholder="Address"
-                  value={form.address}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-              </>
-            )}
 
             <div className="relative w-full">
               <input

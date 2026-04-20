@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { VendorDashboardProvider } from "./context/VendorDashboardContext.jsx";
+import { UserNotificationsProvider } from "./context/UserNotificationsContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import RedirectIfAuthenticated from "./components/RedirectIfAuthenticated.jsx";
+import { Toaster } from "react-hot-toast";
 import "./App.css";
 import Start from "./pages/StartPage/Start.jsx";
 import Login from "./pages/Register/Login.jsx";
@@ -18,10 +20,13 @@ import VendorExpiringSoon from "./pages/Dashboard/VendorExpiringSoon.jsx";
 import VendorReports from "./pages/Dashboard/VendorReports.jsx";
 import VendorSettings from "./pages/Dashboard/VendorSettings.jsx";
 import VendorOrderDetail from "./pages/Dashboard/VendorOrderDetail.jsx";
+import AdminOrders from "./pages/Dashboard/AdminOrders.jsx";
 import CreateStore from "./pages/Dashboard/CreateStore.jsx";
 import UserDashboard from "./pages/Dashboard/UserDashboard.jsx";
 import UserShop from "./pages/User/UserShop.jsx";
 import UserCart from "./pages/User/UserCart.jsx";
+import UserNotifications from "./pages/User/UserNotifications.jsx";
+import UserNotificationDetail from "./pages/User/UserNotificationDetail.jsx";
 import UserHealth from "./pages/User/UserHealth.jsx";
 import UserHealthScanPrescription from "./pages/User/UserHealthScanPrescription.jsx";
 import UserHealthAlternatives from "./pages/User/UserHealthAlternatives.jsx";
@@ -37,6 +42,14 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <VendorDashboardProvider>
+          <UserNotificationsProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 2200,
+              style: { borderRadius: 12 },
+            }}
+          />
         <Routes>
           <Route
             path="/"
@@ -107,6 +120,14 @@ function App() {
             }
           />
           <Route
+            path="/vendor/admin-orders"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AdminOrders />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/vendor/medicine"
             element={
               <ProtectedRoute allowedRoles={["vendor", "admin"]}>
@@ -167,6 +188,22 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["user", "doctor"]}>
                 <UserCart />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/notifications"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserNotifications />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user/notifications/:id"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserNotificationDetail />
               </ProtectedRoute>
             }
           />
@@ -252,10 +289,11 @@ function App() {
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+          </UserNotificationsProvider>
         </VendorDashboardProvider>
       </AuthProvider>
     </BrowserRouter>
   );
 }
 
-export default App
+export default App;

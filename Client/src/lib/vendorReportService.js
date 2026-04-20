@@ -10,7 +10,7 @@ export async function getTotalUnitsSold(pharmacyId) {
     .from("orders")
     .select("id")
     .eq("pharmacy_id", pharmacyId)
-    .in("status", ["paid", "completed"]);
+    .eq("payment_status", "paid");
 
   const orderIds = (orders || []).map((o) => o.id);
   if (orderIds.length === 0) return 0;
@@ -42,7 +42,7 @@ export async function getTopSellingMedicines(pharmacyId, limit = 5) {
     .from("orders")
     .select("id")
     .eq("pharmacy_id", pharmacyId)
-    .in("status", ["paid", "completed"]);
+    .eq("payment_status", "paid");
 
   const orderIds = (orders || []).map((o) => o.id);
   if (orderIds.length === 0) return [];
@@ -146,16 +146,32 @@ export async function getLowStockItems(pharmacyId, threshold = 50) {
 }
 
 export async function getCustomerStats(pharmacyId) {
-  const { data } = await supabase.from("orders").select("status").eq("pharmacy_id", pharmacyId);
-  const byStatus = {};
+  const { data } = await supabase
+    .from("orders")
+    .select("payment_status, fulfillment_status")
+    .eq("pharmacy_id", pharmacyId);
+
+  let awaitingPayment = 0;
+  let pendingShip = 0;
+  let onTheWay = 0;
+  let delivered = 0;
+  let cancelled = 0;
+
   for (const r of data || []) {
-    const s = ((r.status || "").toLowerCase()) || "pending";
-    byStatus[s] = (byStatus[s] || 0) + 1;
+    const p = (r.payment_status || "").toLowerCase();
+    const f = (r.fulfillment_status || "").toLowerCase();
+    if (f === "cancelled") cancelled += 1;
+    else if (p !== "paid") awaitingPayment += 1;
+    else if (f === "delivered") delivered += 1;
+    else if (f === "on_the_way") onTheWay += 1;
+    else pendingShip += 1;
   }
+
   return [
-    { label: "Pending", value: byStatus.pending || 0 },
-    { label: "Paid", value: byStatus.paid || 0 },
-    { label: "Completed", value: byStatus.completed || 0 },
-    { label: "Cancelled", value: byStatus.cancelled || 0 },
+    { label: "Awaiting payment", value: awaitingPayment },
+    { label: "Pending ship", value: pendingShip },
+    { label: "On the way", value: onTheWay },
+    { label: "Delivered", value: delivered },
+    { label: "Cancelled", value: cancelled },
   ];
 }

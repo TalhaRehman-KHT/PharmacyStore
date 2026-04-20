@@ -1,6 +1,5 @@
 /**
- * Vendor order service – mirrors my_fyp OrderService.
- * Uses Supabase: orders, order_items, users.
+ * Vendor order service — Supabase orders with payment_status, fulfillment_status, admin_payment_status.
  */
 import { supabase } from "./supabase.js";
 
@@ -22,13 +21,18 @@ function parseOrder(row) {
   const created = row.created_at ?? row.createdAt;
   const orderDate = created ? new Date(created).toISOString().split("T")[0] : null;
 
+  const paymentStatus = (row.payment_status || "unpaid").toLowerCase();
+  const fulfillmentStatus = (row.fulfillment_status || "pending").toLowerCase();
+
   return {
     id: row.id,
     userId: row.user_id ?? row.userId,
     pharmacyId: row.pharmacy_id ?? row.pharmacyId,
     customerName: row.users?.name ?? row.customerName ?? "Customer",
     customerEmail: row.users?.email ?? row.customerEmail,
-    status: (row.status || "pending").toLowerCase(),
+    paymentStatus,
+    fulfillmentStatus,
+    adminPaymentStatus: row.admin_payment_status ?? null,
     items,
     totalAmount,
     orderDate,
@@ -36,7 +40,28 @@ function parseOrder(row) {
   };
 }
 
-export async function getPharmacyOrders(pharmacyId, { status, limit = 100 } = {}) {
+/** Map UI filter label to Supabase query constraints. */
+function applyOrderFilter(q, filterLabel) {
+  const f = (filterLabel || "All").trim();
+  if (!f || f.toLowerCase() === "all") return q;
+
+  switch (f) {
+    case "Unpaid":
+      return q.eq("payment_status", "unpaid").neq("fulfillment_status", "cancelled");
+    case "Pending":
+      return q.eq("fulfillment_status", "pending");
+    case "On the way":
+      return q.eq("fulfillment_status", "on_the_way");
+    case "Delivered":
+      return q.eq("fulfillment_status", "delivered");
+    case "Cancelled":
+      return q.eq("fulfillment_status", "cancelled");
+    default:
+      return q;
+  }
+}
+
+export async function getPharmacyOrders(pharmacyId, { filter, limit = 100 } = {}) {
   let q = supabase
     .from("orders")
     .select(
@@ -53,24 +78,20 @@ export async function getPharmacyOrders(pharmacyId, { status, limit = 100 } = {}
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (status && status !== "All" && status.toLowerCase() !== "all") {
-    q = q.eq("status", status.toLowerCase());
-  }
+  q = applyOrderFilter(q, filter);
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data || []).map(parseOrder);
 }
 
-export async function getOrderCount(pharmacyId, status) {
+export async function getOrderCount(pharmacyId, filter) {
   let q = supabase
     .from("orders")
     .select("id", { count: "exact", head: true })
     .eq("pharmacy_id", pharmacyId);
 
-  if (status && status !== "All") {
-    q = q.eq("status", status.toLowerCase());
-  }
+  q = applyOrderFilter(q, filter);
 
   const { count, error } = await q;
   if (error) throw new Error(error.message);
@@ -80,15 +101,16 @@ export async function getOrderCount(pharmacyId, status) {
 export async function getTotalRevenue(pharmacyId) {
   const { data, error } = await supabase
     .from("orders")
-    .select("total_amount, status")
+    .select("total_amount, payment_status, admin_payment_status")
     .eq("pharmacy_id", pharmacyId);
 
   if (error) throw new Error(error.message);
 
   let total = 0;
   for (const o of data || []) {
-    const s = (o.status || "").toLowerCase();
-    if ((s === "paid" || s === "completed") && o.total_amount != null) {
+    const paid = (o.payment_status || "").toLowerCase() === "paid";
+    const adminOk = (o.admin_payment_status || "").toLowerCase() === "approved";
+    if (paid && adminOk && o.total_amount != null) {
       total += parseFloat(o.total_amount);
     }
   }
@@ -108,14 +130,46 @@ export async function getUniqueCustomerCount(pharmacyId) {
   return ids.size;
 }
 
-export async function updateOrderStatus(orderId, status) {
-  const { error } = await supabase
+/** Vendor table / dashboard: color key from payment + fulfillment. */
+export function vendorOrderRowStatusKey(order) {
+  if (!order) return "awaiting_payment";
+  if (order.fulfillmentStatus === "cancelled") return "cancelled";
+  if (order.paymentStatus !== "paid") return "awaiting_payment";
+  if (order.fulfillmentStatus === "delivered") return "delivered";
+  if (order.fulfillmentStatus === "on_the_way") return "on_the_way";
+  return "pending_ship";
+}
+
+/** Single-line label for vendor order list. */
+export function vendorOrderRowLabel(order) {
+  if (!order) return "—";
+  if (order.fulfillmentStatus === "cancelled") return "Cancelled";
+  if (order.paymentStatus !== "paid") return "Awaiting payment";
+  if (order.fulfillmentStatus === "delivered") return "Delivered";
+  if (order.fulfillmentStatus === "on_the_way") return "On the way";
+  return "Pending ship";
+}
+
+export async function updateOrderFulfillmentStatus(orderId, fulfillmentStatus, pharmacyId = null) {
+  const v = fulfillmentStatus.toLowerCase();
+  const allowed = ["pending", "on_the_way", "delivered", "cancelled"];
+  if (!allowed.includes(v)) {
+    throw new Error("Invalid fulfillment status");
+  }
+  let q = supabase
     .from("orders")
     .update({
-      status: status.toLowerCase(),
+      fulfillment_status: v,
       updated_at: new Date().toISOString(),
     })
     .eq("id", orderId);
+  if (pharmacyId) {
+    q = q.eq("pharmacy_id", pharmacyId);
+  }
+  const { data, error } = await q.select("id").maybeSingle();
 
   if (error) throw new Error(error.message);
+  if (pharmacyId && !data) {
+    throw new Error("Order not found for this pharmacy");
+  }
 }

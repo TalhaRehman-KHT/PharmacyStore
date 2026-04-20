@@ -2,7 +2,11 @@ import React, { useContext, useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext.jsx";
 import UserLayout from "../../components/UserLayout.jsx";
-import { getUserOrders } from "../../lib/userOrderService.js";
+import {
+  getUserOrders,
+  userOrderBadgeKey,
+  userOrderSummaryLabel,
+} from "../../lib/userOrderService.js";
 import { getCartsForUser } from "../../lib/userCartService.js";
 import { getCustomerStats } from "../../lib/customerStatsService.js";
 import {
@@ -46,17 +50,18 @@ const activityDefaults = [
   { label: "Cart", value: 0, fill: "#FF8F6B" },
 ];
 
-const statusColors = {
-  pending: { bg: "rgba(255,195,39,0.15)", text: "#b45309" },
-  paid: { bg: "rgba(40,89,197,0.12)", text: "#1d4ed8" },
-  completed: { bg: "rgba(0,143,11,0.12)", text: "#008F0B" },
+const badgeColors = {
+  awaiting_payment: { bg: "rgba(255,195,39,0.15)", text: "#b45309" },
+  preparing: { bg: "rgba(40,89,197,0.12)", text: "#1d4ed8" },
+  on_the_way: { bg: "rgba(96,91,255,0.12)", text: "#4B49CC" },
+  delivered: { bg: "rgba(0,143,11,0.12)", text: "#008F0B" },
   cancelled: { bg: "rgba(255,143,107,0.15)", text: "#c2410c" },
 };
 
-function StatusBadge({ status }) {
-  const key = status?.toLowerCase() || "pending";
-  const style = statusColors[key] || statusColors.pending;
-  const label = status ? status[0].toUpperCase() + status.slice(1).toLowerCase() : "Pending";
+function StatusBadge({ order }) {
+  const key = userOrderBadgeKey(order);
+  const style = badgeColors[key] || badgeColors.awaiting_payment;
+  const label = userOrderSummaryLabel(order);
   return (
     <span
       className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold"
@@ -107,7 +112,7 @@ export default function UserDashboard() {
   }, [load]);
 
   const activeCount = orders.filter(
-    (o) => o.status !== "cancelled" && o.status !== "completed"
+    (o) => o.fulfillmentStatus !== "cancelled" && o.fulfillmentStatus !== "delivered"
   ).length;
   const totalOrders = orders.length;
   const recentOrders = orders.slice(0, 5);
@@ -229,7 +234,7 @@ export default function UserDashboard() {
                   .slice(0, 2)
                   .map((i) => i.medicineName)
                   .join(", ") + (order.items.length > 2 ? "..." : "");
-                const sc = statusColors[order.status] || statusColors.pending;
+                const sc = badgeColors[userOrderBadgeKey(order)] || badgeColors.awaiting_payment;
                 return (
                   <Link
                     key={order.id}
@@ -249,7 +254,7 @@ export default function UserDashboard() {
                       <p className="text-[15px] font-bold text-gray-900 truncate">Order #{order.id}</p>
                       <p className="text-[13px] text-gray-500 truncate mt-0.5">{itemsPreview || "No items"}</p>
                       <div className="flex items-center gap-2 mt-2">
-                        <StatusBadge status={order.status} />
+                        <StatusBadge order={order} />
                         <span className="text-xs text-gray-500">
                           {order.items.length} {order.items.length === 1 ? "item" : "items"}
                         </span>

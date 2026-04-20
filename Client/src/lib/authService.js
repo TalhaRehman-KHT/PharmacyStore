@@ -35,14 +35,18 @@ export async function signUp({
   address,
 }) {
   const emailLower = email.trim().toLowerCase();
+  const roleToUse = role || "user";
   const { data: existing } = await supabase
     .from("users")
     .select("id, email")
     .eq("email", emailLower)
+    .eq("role", roleToUse)
     .maybeSingle();
 
   if (existing) {
-    throw new Error("An account with this email already exists.");
+    throw new Error(
+      `An account with this email already exists for ${roleToUse === "vendor" ? "vendor" : "customer"}.`,
+    );
   }
 
   const passwordHash = await hashPassword(password);
@@ -51,7 +55,7 @@ export async function signUp({
     password_hash: passwordHash,
     name: name.trim(),
     phone: phone?.trim() || null,
-    role: role || "user",
+    role: roleToUse,
     company_name: companyName?.trim() || null,
     address: address?.trim() || null,
     email_verified: false,
@@ -66,7 +70,11 @@ export async function signUp({
     .single();
 
   if (insertError) {
-    if (insertError.code === "23505") throw new Error("An account with this email already exists.");
+    if (insertError.code === "23505") {
+      throw new Error(
+        `An account with this email already exists for ${roleToUse === "vendor" ? "vendor" : "customer"}.`,
+      );
+    }
     throw new Error(insertError.message || "Database error");
   }
 

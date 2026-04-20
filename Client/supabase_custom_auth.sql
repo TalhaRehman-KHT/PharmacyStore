@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT UNIQUE NOT NULL,
+  email TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
   phone TEXT,
@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   last_login TIMESTAMP WITH TIME ZONE
 );
+
+-- Allow same email across roles (customer vs vendor), but not within the same role.
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_role_key ON users (email, role);
 
 CREATE TABLE IF NOT EXISTS otps (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

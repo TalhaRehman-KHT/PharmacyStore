@@ -1,22 +1,34 @@
-import { useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useContext } from "react";
+import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { useVendorDashboard } from "../context/VendorDashboardContext.jsx";
+import { AuthContext } from "../context/AuthContext.jsx";
 
 /**
  * Redirects vendor to /vendor/create-store if they have no pharmacy.
- * Use only on vendor dashboard routes (not on create-store itself).
+ * Admins skip this (they use Payout review without owning a store).
  */
 export default function VendorRouteGuard({ children }) {
+  const { user } = useContext(AuthContext);
   const { pharmacy, loading } = useVendorDashboard();
   const navigate = useNavigate();
   const location = useLocation();
 
+  const isAdmin = user?.role === "admin";
+
   useEffect(() => {
+    if (isAdmin) return;
     if (loading) return;
     if (!pharmacy?.id && !location.pathname.includes("/vendor/create-store")) {
       navigate("/vendor/create-store", { replace: true });
     }
-  }, [pharmacy?.id, loading, navigate, location.pathname]);
+  }, [isAdmin, pharmacy?.id, loading, navigate, location.pathname]);
+
+  if (isAdmin) {
+    if (location.pathname.startsWith("/vendor/admin-orders")) {
+      return children;
+    }
+    return <Navigate to="/vendor/admin-orders" replace />;
+  }
 
   if (loading && !pharmacy?.id) {
     return (

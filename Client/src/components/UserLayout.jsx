@@ -9,12 +9,15 @@ import {
   HeartPulse,
   User,
   LogOut,
+  Bell,
 } from "lucide-react";
+import { UserNotificationsContext } from "../context/UserNotificationsContext.jsx";
 
 const navItems = [
   { path: "/user/dashboard", label: "Home", icon: Home },
   { path: "/user/shop", label: "Shop", icon: Store },
   { path: "/user/cart", label: "Cart", icon: ShoppingCart },
+  { path: "/user/notifications", label: "Notifications", icon: Bell },
   { path: "/user/orders", label: "Orders", icon: Package },
   { path: "/user/health", label: "Health", icon: HeartPulse },
   { path: "/user/profile", label: "Profile", icon: User },
@@ -23,6 +26,7 @@ const navItems = [
 export default function UserLayout({ children }) {
   const { user, logout } = useContext(AuthContext);
   const location = useLocation();
+  const { unreadCount } = useContext(UserNotificationsContext);
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -40,6 +44,7 @@ export default function UserLayout({ children }) {
         <nav className="flex-1 py-4 px-3 space-y-1">
           {navItems.map(({ path, label, icon: Icon }) => {
             const isActive = location.pathname === path;
+            const isNotifications = path === "/user/notifications";
             return (
               <Link
                 key={label}
@@ -51,7 +56,12 @@ export default function UserLayout({ children }) {
                 }`}
               >
                 <Icon className="w-5 h-5 shrink-0" />
-                {label}
+                <span className="flex-1 min-w-0 truncate">{label}</span>
+                {isNotifications && unreadCount > 0 && (
+                  <span className="min-w-6 h-6 px-2 rounded-full bg-primary-orange text-white text-[12px] font-bold flex items-center justify-center">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}

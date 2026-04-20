@@ -46,7 +46,7 @@ export function getRoleHome(role) {
     case "user":
       return "/user/dashboard";
     case "admin":
-      return "/vendor/dashboard";
+      return "/vendor/admin-orders";
     case "doctor":
       return "/user/dashboard";
     default:

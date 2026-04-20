@@ -10,6 +10,7 @@ import {
   Settings,
   LogOut,
   Store,
+  ShieldCheck,
 } from "lucide-react";
 
 const navItems = [
@@ -24,13 +25,17 @@ export default function VendorLayout({ children }) {
   const { user, logout } = useContext(AuthContext);
   const { pharmacy } = useVendorDashboard();
   const location = useLocation();
+  const isAdmin = user?.role === "admin";
 
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar – my_fyp: sidebarBackground #0D0D0D */}
       <aside className="w-64 min-h-screen bg-sidebar text-white flex flex-col shrink-0">
         <div className="p-4 border-b border-white/10">
-          <Link to={pharmacy?.id ? "/vendor/dashboard" : "/vendor/create-store"} className="block">
+          <Link
+            to={isAdmin ? "/vendor/admin-orders" : pharmacy?.id ? "/vendor/dashboard" : "/vendor/create-store"}
+            className="block"
+          >
             <img
               src="/assets/logo.png"
               alt="Pharmacy Store"
@@ -39,36 +44,52 @@ export default function VendorLayout({ children }) {
           </Link>
         </div>
         <nav className="flex-1 py-4 px-3 space-y-1">
-          {!pharmacy?.id && (
+          {isAdmin ? (
             <Link
-              to="/vendor/create-store"
+              to="/vendor/admin-orders"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                location.pathname === "/vendor/create-store"
+                location.pathname.startsWith("/vendor/admin-orders")
                   ? "bg-primary-green text-white shadow-lg shadow-primary-green/25"
                   : "text-gray-400 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <Store className="w-5 h-5 shrink-0" />
-              Create Store
+              <ShieldCheck className="w-5 h-5 shrink-0" />
+              Vendor payouts
             </Link>
+          ) : (
+            <>
+              {!pharmacy?.id && (
+                <Link
+                  to="/vendor/create-store"
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    location.pathname === "/vendor/create-store"
+                      ? "bg-primary-green text-white shadow-lg shadow-primary-green/25"
+                      : "text-gray-400 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <Store className="w-5 h-5 shrink-0" />
+                  Create Store
+                </Link>
+              )}
+              {navItems.map(({ path, label, icon: Icon }) => {
+                const isActive = location.pathname === path;
+                return (
+                  <Link
+                    key={label}
+                    to={path}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-primary-green text-white shadow-lg shadow-primary-green/25"
+                        : "text-gray-400 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    <Icon className="w-5 h-5 shrink-0" />
+                    {label}
+                  </Link>
+                );
+              })}
+            </>
           )}
-          {navItems.map(({ path, label, icon: Icon }) => {
-            const isActive = location.pathname === path;
-            return (
-              <Link
-                key={label}
-                to={path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-primary-green text-white shadow-lg shadow-primary-green/25"
-                    : "text-gray-400 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <Icon className="w-5 h-5 shrink-0" />
-                {label}
-              </Link>
-            );
-          })}
         </nav>
         <div className="p-3 border-t border-white/10">
           <button

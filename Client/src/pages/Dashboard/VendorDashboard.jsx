@@ -12,6 +12,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { vendorOrderRowLabel, vendorOrderRowStatusKey } from "../../lib/vendorOrderService.js";
 import {
   Pill,
   ShoppingCart,
@@ -76,18 +77,20 @@ function formatCurrency(amount) {
   return `$${amount.toFixed(0)}`;
 }
 
-function formatStatus(s) {
-  if (!s) return s;
-  return s[0].toUpperCase() + s.slice(1);
-}
-
-function statusColor(s) {
-  switch ((s || "").toLowerCase()) {
-    case "pending": return "#FFC327";
-    case "paid": return "#2859C5";
-    case "completed": return "#008F0B";
-    case "cancelled": return "#FF8F6B";
-    default: return "#6b7280";
+function statusColorFromKey(key) {
+  switch (key) {
+    case "awaiting_payment":
+      return "#FFC327";
+    case "pending_ship":
+      return "#2859C5";
+    case "on_the_way":
+      return "#605BFF";
+    case "delivered":
+      return "#008F0B";
+    case "cancelled":
+      return "#FF8F6B";
+    default:
+      return "#6b7280";
   }
 }
 
@@ -265,9 +268,9 @@ export default function VendorDashboard() {
                           <td className="px-5 py-3">
                             <span
                               className="font-semibold"
-                              style={{ color: statusColor(order.status) }}
+                              style={{ color: statusColorFromKey(vendorOrderRowStatusKey(order)) }}
                             >
-                              {formatStatus(order.status)}
+                              {vendorOrderRowLabel(order)}
                             </span>
                           </td>
                           <td className="px-5 py-3">

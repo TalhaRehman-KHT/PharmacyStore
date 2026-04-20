@@ -13,11 +13,17 @@ function parseOrder(row) {
   const totalAmount = items.reduce((s, i) => s + (i.totalPrice || i.quantity * i.unitPrice), 0);
   const created = row.created_at ?? row.createdAt;
   const orderDate = created ? new Date(created).toLocaleDateString() : "—";
+  const paymentStatus = (row.payment_status || "unpaid").toLowerCase();
+  const fulfillmentStatus = (row.fulfillment_status || "pending").toLowerCase();
+
   return {
     id: row.id,
     userId: row.user_id ?? row.userId,
     pharmacyId: row.pharmacy_id ?? row.pharmacyId,
-    status: (row.status || "pending").toLowerCase(),
+    pharmacyName: row.pharmacies?.name ?? "Pharmacy",
+    paymentStatus,
+    fulfillmentStatus,
+    adminPaymentStatus: row.admin_payment_status ?? null,
     items,
     totalAmount,
     orderDate,
@@ -25,12 +31,31 @@ function parseOrder(row) {
   };
 }
 
-export async function getUserOrders(userId, { status, limit = 100 } = {}) {
+function applyUserOrderFilter(q, filterLabel) {
+  const f = (filterLabel || "All").trim();
+  if (!f || f.toLowerCase() === "all") return q;
+
+  switch (f) {
+    case "Pending":
+      return q.eq("fulfillment_status", "pending");
+    case "On the way":
+      return q.eq("fulfillment_status", "on_the_way");
+    case "Delivered":
+      return q.eq("fulfillment_status", "delivered");
+    case "Cancelled":
+      return q.eq("fulfillment_status", "cancelled");
+    default:
+      return q;
+  }
+}
+
+export async function getUserOrders(userId, { filter, limit = 100 } = {}) {
   let q = supabase
     .from("orders")
     .select(
       `
       *,
+      pharmacies ( name ),
       order_items (
         id, order_id, batch_id, medicine_id, quantity, unit_price, total_price,
         medicines ( name )
@@ -41,9 +66,7 @@ export async function getUserOrders(userId, { status, limit = 100 } = {}) {
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (status && status !== "All" && status.toLowerCase() !== "all") {
-    q = q.eq("status", status.toLowerCase());
-  }
+  q = applyUserOrderFilter(q, filter);
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
@@ -56,6 +79,7 @@ export async function getUserOrder(userId, orderId) {
     .select(
       `
       *,
+      pharmacies ( name ),
       order_items (
         id, order_id, batch_id, medicine_id, quantity, unit_price, total_price,
         medicines ( name )
@@ -83,8 +107,10 @@ export async function createOrder(userId, pharmacyId, items) {
     .insert({
       user_id: userId,
       pharmacy_id: pharmacyId,
-      status: "pending",
+      payment_status: "unpaid",
+      fulfillment_status: "pending",
       total_amount: totalAmount,
+      admin_payment_status: null,
     })
     .select("id")
     .single();
@@ -105,4 +131,27 @@ export async function createOrder(userId, pharmacyId, items) {
   }
 
   return orderId;
+}
+
+/** Short label for user-facing order list (payment + delivery). */
+export function userOrderSummaryLabel(order) {
+  if (!order) return "—";
+  if (order.fulfillmentStatus === "cancelled") return "Cancelled";
+  if (order.fulfillmentStatus === "delivered") return "Delivered";
+  if (order.fulfillmentStatus === "on_the_way") return "On the way";
+  if (order.fulfillmentStatus === "pending") {
+    if (order.paymentStatus !== "paid") return "Awaiting payment";
+    return "Processing";
+  }
+  return "—";
+}
+
+/** Key for styling badges. */
+export function userOrderBadgeKey(order) {
+  if (!order) return "awaiting_payment";
+  if (order.fulfillmentStatus === "cancelled") return "cancelled";
+  if (order.paymentStatus !== "paid") return "awaiting_payment";
+  if (order.fulfillmentStatus === "delivered") return "delivered";
+  if (order.fulfillmentStatus === "on_the_way") return "on_the_way";
+  return "preparing";
 }

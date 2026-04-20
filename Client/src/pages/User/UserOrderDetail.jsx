@@ -2,13 +2,18 @@ import React, { useState, useEffect, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import UserLayout from "../../components/UserLayout.jsx";
 import { AuthContext } from "../../context/AuthContext.jsx";
-import { getUserOrder } from "../../lib/userOrderService.js";
+import {
+  getUserOrder,
+  userOrderBadgeKey,
+  userOrderSummaryLabel,
+} from "../../lib/userOrderService.js";
 import { ChevronLeft, Package, Calendar, Clock, Wallet } from "lucide-react";
 
-const statusColors = {
-  pending: { bg: "rgba(255,195,39,0.15)", text: "#b45309" },
-  paid: { bg: "rgba(40,89,197,0.12)", text: "#1d4ed8" },
-  completed: { bg: "rgba(0,143,11,0.12)", text: "#008F0B" },
+const badgeColors = {
+  awaiting_payment: { bg: "rgba(255,195,39,0.15)", text: "#b45309" },
+  preparing: { bg: "rgba(40,89,197,0.12)", text: "#1d4ed8" },
+  on_the_way: { bg: "rgba(96,91,255,0.12)", text: "#4B49CC" },
+  delivered: { bg: "rgba(0,143,11,0.12)", text: "#008F0B" },
   cancelled: { bg: "rgba(255,143,107,0.15)", text: "#c2410c" },
 };
 
@@ -47,11 +52,16 @@ export default function UserOrderDetail() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id, orderId]);
 
-  const status = (order?.status || "pending").toLowerCase();
-  const style = statusColors[status] || statusColors.pending;
+  const badgeKey = order ? userOrderBadgeKey(order) : "awaiting_payment";
+  const style = badgeColors[badgeKey] || badgeColors.awaiting_payment;
+  const headline = order ? userOrderSummaryLabel(order) : "—";
+  const pay = (order?.paymentStatus || "").toLowerCase();
+  const fulfill = (order?.fulfillmentStatus || "").toLowerCase();
 
   return (
     <UserLayout>
@@ -84,9 +94,23 @@ export default function UserOrderDetail() {
                     className="px-3 py-1.5 rounded-lg text-sm font-semibold"
                     style={{ backgroundColor: style.bg, color: style.text }}
                   >
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                    {headline}
                   </span>
                 </div>
+                <dl className="space-y-2 text-sm text-text-secondary mb-4">
+                  <div className="flex flex-wrap gap-2">
+                    <dt className="font-semibold text-gray-800">Pharmacy:</dt>
+                    <dd>{order.pharmacyName ?? "—"}</dd>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <dt className="font-semibold text-gray-800">Stripe payment:</dt>
+                    <dd className="capitalize">{pay || "—"}</dd>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <dt className="font-semibold text-gray-800">Delivery:</dt>
+                    <dd className="capitalize">{fulfill.replace(/_/g, " ")}</dd>
+                  </div>
+                </dl>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2 text-text-secondary">
                     <Calendar className="w-4 h-4 shrink-0" />
@@ -103,6 +127,11 @@ export default function UserOrderDetail() {
                     </span>
                   </div>
                 </div>
+                {pay === "paid" && (
+                  <p className="mt-4 text-xs text-gray-600">
+                    Payment succeeded in Stripe. The pharmacy will update delivery status as your order moves along.
+                  </p>
+                )}
               </div>
 
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -115,7 +144,8 @@ export default function UserOrderDetail() {
                 ) : (
                   <ul className="divide-y divide-gray-100">
                     {order.items.map((item, i) => {
-                      const subtotal = (item.quantity || 0) * (item.unitPrice || item.totalPrice / (item.quantity || 1) || 0);
+                      const subtotal =
+                        (item.quantity || 0) * (item.unitPrice || item.totalPrice / (item.quantity || 1) || 0);
                       return (
                         <li key={item.id || i} className="px-5 py-4 flex justify-between items-start gap-4">
                           <div className="min-w-0 flex-1">
