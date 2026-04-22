@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext.jsx";
 import { useVendorDashboard } from "../context/VendorDashboardContext.jsx";
@@ -11,6 +11,8 @@ import {
   LogOut,
   Store,
   ShieldCheck,
+  Menu,
+  X,
 } from "lucide-react";
 
 const navItems = [
@@ -26,11 +28,28 @@ export default function VendorLayout({ children }) {
   const { pharmacy } = useVendorDashboard();
   const location = useLocation();
   const isAdmin = user?.role === "admin";
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar – my_fyp: sidebarBackground #0D0D0D */}
-      <aside className="w-64 min-h-screen bg-sidebar text-white flex flex-col shrink-0">
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar overlay"
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      {/* Sidebar – fixed drawer on mobile, static on desktop */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-white flex flex-col shrink-0 transform transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="p-4 border-b border-white/10">
           <Link
             to={isAdmin ? "/vendor/admin-orders" : pharmacy?.id ? "/vendor/dashboard" : "/vendor/create-store"}
@@ -43,6 +62,14 @@ export default function VendorLayout({ children }) {
             />
           </Link>
         </div>
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className="absolute top-3 right-3 p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 lg:hidden"
+          aria-label="Close menu"
+        >
+          <X className="w-5 h-5" />
+        </button>
         <nav className="flex-1 py-4 px-3 space-y-1">
           {isAdmin ? (
             <Link
@@ -104,7 +131,15 @@ export default function VendorLayout({ children }) {
 
       <main className="flex-1 min-w-0 flex flex-col">
         {/* Header – white, subtle border like my_fyp */}
-        <header className="bg-white border-b border-border px-4 sm:px-6 py-3 flex items-center justify-end shadow-sm">
+        <header className="bg-white border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="inline-flex lg:hidden items-center justify-center p-2 rounded-lg border border-border text-text-primary hover:bg-background"
+            aria-label="Open sidebar menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <div className="flex items-center gap-2">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center text-primary-green font-semibold text-sm"
