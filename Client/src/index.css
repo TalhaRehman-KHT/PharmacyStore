@@ -1,8 +1,25 @@
 @import "tailwindcss";
 
+/* my_fyp design system – vendor screens */
+@theme {
+  --color-primary-green: #008f0b;
+  --color-dark-green: #007009;
+  --color-accent-green: #e6f7e7;
+  --color-text-primary: #1a1919;
+  --color-text-secondary: #6b7280;
+  --color-background: #f8f9fa;
+  --color-sidebar: #0d0d0d;
+  --color-card-shadow: rgba(0, 0, 0, 0.05);
+  --color-primary-blue: #2859c5;
+  --color-primary-orange: #ff8f6b;
+  --color-primary-purple: #605bff;
+  --color-warning: #ffc327;
+  --color-error: #ff8f6b;
+  --color-border: #e5e7eb;
+}
 
 @layer components {
   .primary {
-    @apply rounded-md bg-green-500 text-white border-none py-2 px-4 hover:bg-green-400 hover:font-semibold;
+    @apply rounded-md bg-primary-green text-white border-none py-2 px-4 hover:bg-dark-green hover:font-semibold;
   }
 }

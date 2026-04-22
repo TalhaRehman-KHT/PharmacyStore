@@ -11,8 +11,9 @@ export default defineConfig({
   server: {
     proxy: {
       // ✅ This forwards requests from frontend → backend
+      // Optional: same port as PharmacyStore/Server default (axios usually calls http://localhost:5050 directly in dev).
       "/api": {
-        target: "http://localhost:5000" || "http://localhost:3000",
+        target: "http://localhost:5050",
         changeOrigin: true,
         secure: false,
       },

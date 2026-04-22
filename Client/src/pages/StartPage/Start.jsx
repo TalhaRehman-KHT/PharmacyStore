@@ -16,43 +16,29 @@ export default function Start() {
 
             {/* Right Content Section */}
             <div className="contentSection">
-                {/* Sign-in Button (top-right on large screens) */}
-                <div className="absolute top-6 right-6 md:block hidden">
-                    <Link to="/login" className="signin">
-                        Sign in
-                    </Link>
-                </div>
-
-                {/* Sign-in Button (center top on small screens) */}
-                <div className="md:hidden mb-6">
-                    <Link to="/login" className="signin">
-                        Sign in
-                    </Link>
-                </div>
-
                 {/* Centered Content */}
                 <div className="flex flex-col justify-center items-center w-full max-w-sm">
                     <h3 className="text-2xl font-semibold mb-2">
-                        Sign Up to Pharmacy Store
+                        Pharmacy Store
                     </h3>
                     <span className="text-gray-600 mb-8 text-sm md:text-base">
                         How do you want to join our wide community?
                     </span>
 
-                    {/* Join as Vendor */}
+                    {/* Vendor: Join */}
                     <Link
-                        to="/register?role=vendor"
-                        className="w-full py-4 mb-4 rounded-lg border border-gray-300 hover:bg-gray-100 hover:border-green-400 font-semibold transition block"
+                        to="/vendor/register"
+                        className="w-full py-3 mb-4 rounded-lg bg-green-600 text-white hover:bg-green-700 font-medium transition block text-center"
                     >
                         Join as Vendor
                     </Link>
 
-                    {/* Join as User */}
+                    {/* User: Join */}
                     <Link
-                        to="/register?role=user"
-                        className="w-full py-4 rounded-lg border border-gray-300 hover:bg-gray-100 hover:border-green-400 font-semibold transition block"
+                        to="/user/register"
+                        className="w-full py-3 rounded-lg bg-green-600 text-white hover:bg-green-700 font-medium transition block text-center"
                     >
-                        Join as User
+                        Join as Customer
                     </Link>
                 </div>
             </div>
