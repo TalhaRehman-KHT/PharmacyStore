@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "./context/AuthContext.jsx";
+import { GOOGLE_WEB_CLIENT_ID } from "./lib/googleConstants.js";
 import { VendorDashboardProvider } from "./context/VendorDashboardContext.jsx";
 import { UserNotificationsProvider } from "./context/UserNotificationsContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -39,6 +41,7 @@ import UserOrderDetail from "./pages/User/UserOrderDetail.jsx";
 
 function App() {
   return (
+    <GoogleOAuthProvider clientId={GOOGLE_WEB_CLIENT_ID}>
     <BrowserRouter>
       <AuthProvider>
         <VendorDashboardProvider>
@@ -293,6 +296,7 @@ function App() {
         </VendorDashboardProvider>
       </AuthProvider>
     </BrowserRouter>
+    </GoogleOAuthProvider>
   );
 }
 

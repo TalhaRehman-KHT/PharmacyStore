@@ -180,7 +180,7 @@ export default function VendorReports() {
 
                 <div>
                   <h2 className="text-xl font-bold text-text-primary mb-4">Overview</h2>
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     {summaryCards.map(({ label, value, icon: Icon, style: s }) => (
                       <div
                         key={label}

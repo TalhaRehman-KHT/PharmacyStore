@@ -20,6 +20,9 @@ import {
   DollarSign,
   TrendingUp,
   ChevronRight,
+  Plus,
+  FileText,
+  CalendarClock,
 } from "lucide-react";
 
 const PERIODS = ["Day", "Week", "Month"];
@@ -132,18 +135,31 @@ export default function VendorDashboard() {
     <VendorRouteGuard>
       <VendorLayout>
         <div className="min-h-full">
-          <div className="px-4 sm:px-6 py-4 pb-6 max-w-7xl mx-auto">
-            {/* Header with refresh */}
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-bold text-text-primary">Overview</h1>
-              <button
-                type="button"
-                onClick={refresh}
-                disabled={loading}
-                className="text-sm text-primary-green hover:underline font-medium disabled:opacity-50"
-              >
-                {loading ? "Refreshing…" : "Refresh"}
-              </button>
+          <div className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-text-primary truncate">Dashboard</h1>
+                <p className="text-sm text-text-secondary mt-0.5 truncate">
+                  {pharmacy?.name ? `Overview for ${pharmacy.name}` : "Track orders, inventory and revenue"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={refresh}
+                  disabled={loading}
+                  className="inline-flex items-center justify-center px-3.5 py-2 rounded-xl border border-border bg-white text-sm font-semibold text-text-primary hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {loading ? "Refreshing…" : "Refresh"}
+                </button>
+                <Link
+                  to="/vendor/medicine"
+                  className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-primary-green text-white text-sm font-semibold hover:bg-dark-green"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add medicine
+                </Link>
+              </div>
             </div>
 
             {error && (
@@ -153,8 +169,7 @@ export default function VendorDashboard() {
               </div>
             )}
 
-            {/* Overview cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
               {overviewCards.map(({ label, value, icon: Icon, style: s }) => (
                 <div
                   key={label}
@@ -177,116 +192,194 @@ export default function VendorDashboard() {
               ))}
             </div>
 
-            {/* Orders chart */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden mb-5">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-primary-green/10 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-primary-green" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+              <div className="lg:col-span-2 space-y-5">
+                <div className="bg-white rounded-2xl border border-border shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-primary-green/10 flex items-center justify-center shrink-0">
+                        <TrendingUp className="w-5 h-5 text-primary-green" />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className="text-base sm:text-lg font-bold text-text-primary truncate">Orders trend</h2>
+                        <p className="text-xs text-text-secondary truncate">Orders per week (recent)</p>
+                      </div>
+                    </div>
+                    <Link to="/vendor/orders" className="text-primary-green font-semibold text-sm hover:underline shrink-0">
+                      View orders
+                    </Link>
+                  </div>
+                  <div className="p-4">
+                    <div className="h-56 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 11, fill: "#6b7280" }}
+                            axisLine={{ stroke: "#e5e7eb" }}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12, fill: "#6b7280" }}
+                            axisLine={false}
+                            tickLine={false}
+                            allowDecimals={false}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              borderRadius: "12px",
+                              border: "1px solid #e5e7eb",
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                            }}
+                            formatter={(value) => [`${value} orders`, "Orders"]}
+                          />
+                          <Bar dataKey="orders" fill="#008F0B" radius={[6, 6, 0, 0]} name="Orders" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Orders</h2>
-                  <p className="text-xs text-gray-500">Orders per week (recent)</p>
-                </div>
-              </div>
-              <div className="p-4">
-                <div className="h-56 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fontSize: 11, fill: "#6b7280" }}
-                        axisLine={{ stroke: "#e5e7eb" }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 12, fill: "#6b7280" }}
-                        axisLine={false}
-                        tickLine={false}
-                        allowDecimals={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: "12px",
-                          border: "1px solid #e5e7eb",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                        }}
-                        formatter={(value) => [`${value} orders`, "Orders"]}
-                      />
-                      <Bar dataKey="orders" fill="#008F0B" radius={[6, 6, 0, 0]} name="Orders" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
 
-            {/* Recent orders */}
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xl font-bold text-text-primary">Recent Customer Orders</h2>
-              <Link
-                to="/vendor/orders"
-                className="text-primary-green font-semibold text-sm hover:underline"
-              >
-                View All
-              </Link>
-            </div>
-            <div className="bg-white rounded-xl border border-border shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden mb-5">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-background text-text-secondary text-left">
-                      <th className="px-5 py-3">Order ID</th>
-                      <th className="px-5 py-3">Customer</th>
-                      <th className="px-5 py-3">Total</th>
-                      <th className="px-5 py-3">Status</th>
-                      <th className="px-5 py-3">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={5} className="px-5 py-8 text-center text-text-secondary">
-                          Loading…
-                        </td>
-                      </tr>
-                    ) : orders.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-5 py-8 text-center text-text-secondary">
-                          No orders yet
-                        </td>
-                      </tr>
-                    ) : (
-                      orders.slice(0, 5).map((order) => (
-                        <tr key={order.id} className="border-t border-border hover:bg-background/50">
-                          <td className="px-5 py-3 text-text-primary font-medium font-mono text-xs">
-                            #{order.id.slice(0, 8)}
-                          </td>
-                          <td className="px-5 py-3 text-text-primary">{order.customerName ?? "Customer"}</td>
-                          <td className="px-5 py-3 text-primary-green font-semibold">
-                            ${order.totalAmount?.toFixed(2) ?? "0.00"}
-                          </td>
-                          <td className="px-5 py-3">
-                            <span
-                              className="font-semibold"
-                              style={{ color: statusColorFromKey(vendorOrderRowStatusKey(order)) }}
-                            >
-                              {vendorOrderRowLabel(order)}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3">
-                            <Link
-                              to={`/vendor/orders/${order.id}`}
-                              className="text-primary-green font-semibold text-xs hover:underline inline-flex items-center gap-1"
-                            >
-                              View <ChevronRight className="w-3.5 h-3.5" />
-                            </Link>
-                          </td>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base sm:text-lg font-bold text-text-primary">Recent orders</h2>
+                  <Link to="/vendor/orders" className="text-primary-green font-semibold text-sm hover:underline">
+                    View all
+                  </Link>
+                </div>
+                <div className="bg-white rounded-2xl border border-border shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-background text-text-secondary text-left">
+                          <th className="px-5 py-3">Order</th>
+                          <th className="px-5 py-3">Customer</th>
+                          <th className="px-5 py-3 text-right">Total</th>
+                          <th className="px-5 py-3">Status</th>
+                          <th className="px-5 py-3" />
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      </thead>
+                      <tbody>
+                        {loading ? (
+                          <tr>
+                            <td colSpan={5} className="px-5 py-10 text-center text-text-secondary">
+                              Loading…
+                            </td>
+                          </tr>
+                        ) : orders.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-5 py-10 text-center text-text-secondary">
+                              No orders yet
+                            </td>
+                          </tr>
+                        ) : (
+                          orders.slice(0, 6).map((order) => (
+                            <tr key={order.id} className="border-t border-border hover:bg-background/50">
+                              <td className="px-5 py-3 text-text-primary font-medium font-mono text-xs whitespace-nowrap">
+                                #{order.id.slice(0, 8)}
+                              </td>
+                              <td className="px-5 py-3 text-text-primary">{order.customerName ?? "Customer"}</td>
+                              <td className="px-5 py-3 text-right text-primary-green font-semibold whitespace-nowrap">
+                                ${order.totalAmount?.toFixed(2) ?? "0.00"}
+                              </td>
+                              <td className="px-5 py-3">
+                                <span
+                                  className="font-semibold"
+                                  style={{ color: statusColorFromKey(vendorOrderRowStatusKey(order)) }}
+                                >
+                                  {vendorOrderRowLabel(order)}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3">
+                                <Link
+                                  to={`/vendor/orders/${order.id}`}
+                                  className="text-primary-green font-semibold text-xs hover:underline inline-flex items-center gap-1 whitespace-nowrap"
+                                >
+                                  Manage <ChevronRight className="w-3.5 h-3.5" />
+                                </Link>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
+
+              <aside className="space-y-5">
+                <div className="bg-white rounded-2xl border border-border shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border">
+                    <h3 className="text-sm font-bold text-text-primary">Quick actions</h3>
+                    <p className="text-xs text-text-secondary mt-0.5">Common vendor tasks</p>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <Link
+                      to="/vendor/medicine"
+                      className="w-full inline-flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border hover:bg-gray-50"
+                    >
+                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-primary">
+                        <Pill className="w-4 h-4 text-primary-green" />
+                        Manage inventory
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </Link>
+                    <Link
+                      to="/vendor/orders"
+                      className="w-full inline-flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border hover:bg-gray-50"
+                    >
+                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-primary">
+                        <ShoppingCart className="w-4 h-4 text-primary-blue" />
+                        Process orders
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </Link>
+                    <Link
+                      to="/vendor/reports"
+                      className="w-full inline-flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border hover:bg-gray-50"
+                    >
+                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-primary">
+                        <FileText className="w-4 h-4 text-primary-purple" />
+                        View reports
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-border shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border">
+                    <h3 className="text-sm font-bold text-text-primary">Inventory alerts</h3>
+                    <p className="text-xs text-text-secondary mt-0.5">Stay ahead of stock issues</p>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-warning" />
+                        <span className="text-sm font-semibold text-text-primary">Low stock</span>
+                      </div>
+                      <span className="text-sm font-bold text-text-primary">{loading ? "…" : lowStockCount}</span>
+                    </div>
+                    <Link
+                      to="/vendor/medicine"
+                      className="inline-flex items-center justify-between gap-3 w-full px-4 py-2.5 rounded-xl bg-background hover:bg-gray-100 text-sm font-semibold text-primary-green"
+                    >
+                      Review inventory
+                      <ChevronRight className="w-4 h-4" />
+                    </Link>
+                    <Link
+                      to="/vendor/expiring-soon"
+                      className="inline-flex items-center justify-between gap-3 w-full px-4 py-2.5 rounded-xl bg-background hover:bg-gray-100 text-sm font-semibold text-text-primary"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <CalendarClock className="w-4 h-4 text-primary-orange" />
+                        Expiring soon
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </Link>
+                  </div>
+                </div>
+              </aside>
             </div>
           </div>
         </div>

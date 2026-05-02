@@ -119,8 +119,8 @@ export default function VendorOrderDetail() {
   return (
     <VendorRouteGuard>
       <VendorLayout>
-        <div className="min-h-full bg-[#f5f5f5]">
-          <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
+        <div className="min-h-full">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
             <button
               type="button"
               onClick={() => navigate("/vendor/orders")}
@@ -136,126 +136,128 @@ export default function VendorOrderDetail() {
               <div className="bg-white rounded-2xl p-8 text-center text-text-secondary">Order not found</div>
             ) : (
               <div className="space-y-6">
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                    <h1 className="text-xl font-bold text-gray-900">Order #{order.id.slice(0, 8)}</h1>
-                    <span
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold"
-                      style={{ backgroundColor: summaryStyle.bg, color: summaryStyle.text }}
-                    >
-                      {summaryLabel}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
-                    <span>Customer: {order.customerName ?? "—"}</span>
-                    <span>•</span>
-                    <span>Date: {order.orderDate ?? "—"}</span>
-                  </div>
-                  <div className="mt-4 text-lg font-bold text-primary-green">
-                    ${order.totalAmount?.toFixed(2) ?? "0.00"}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                        <h1 className="text-xl font-bold text-gray-900">Order #{order.id.slice(0, 8)}</h1>
+                        <span
+                          className="px-3 py-1.5 rounded-lg text-sm font-semibold"
+                          style={{ backgroundColor: summaryStyle.bg, color: summaryStyle.text }}
+                        >
+                          {summaryLabel}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
+                        <span>Customer: {order.customerName ?? "—"}</span>
+                        <span>•</span>
+                        <span>Date: {order.orderDate ?? "—"}</span>
+                      </div>
+                      <div className="mt-4 text-lg font-bold text-primary-green">
+                        ${order.totalAmount?.toFixed(2) ?? "0.00"}
+                      </div>
+
+                      <dl className="mt-4 space-y-2 text-sm">
+                        <div className="flex flex-wrap gap-2">
+                          <dt className="font-semibold text-gray-800">Payment (Stripe):</dt>
+                          <dd className="text-text-secondary capitalize">{pay || "—"}</dd>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <dt className="font-semibold text-gray-800">Fulfillment:</dt>
+                          <dd className="text-text-secondary capitalize">{fulfill.replace(/_/g, " ")}</dd>
+                        </div>
+                        {pay === "paid" && (
+                          <div className="pt-2 border-t border-gray-100">
+                            <p className="font-semibold text-gray-800 mb-1">Admin payout</p>
+                            {admin === "pending" && (
+                              <p className="text-amber-700">
+                                Pending admin confirmation — funds are held by the platform until approved.
+                              </p>
+                            )}
+                            {admin === "approved" && (
+                              <p className="text-primary-green">
+                                Approved — you can mark the order on the way and delivered when fulfilled.
+                              </p>
+                            )}
+                            {admin === "rejected" && <p className="text-red-700">Rejected — contact support.</p>}
+                            {!admin && <p className="text-gray-600">Awaiting admin review after Stripe payment.</p>}
+                          </div>
+                        )}
+                      </dl>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                      <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+                        <Package className="w-5 h-5 text-primary-green" />
+                        <h2 className="font-bold text-gray-900">Items</h2>
+                      </div>
+                      <ul className="divide-y divide-gray-100">
+                        {order.items?.map((item, i) => (
+                          <li key={i} className="px-5 py-4 flex justify-between items-center">
+                            <div>
+                              <p className="font-medium text-gray-900">{item.medicineName ?? "Medicine"}</p>
+                              <p className="text-sm text-text-secondary">
+                                Qty: {item.quantity} × ${(item.unitPrice || 0).toFixed(2)}
+                              </p>
+                            </div>
+                            <span className="font-semibold text-primary-green">
+                              ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
 
-                  <dl className="mt-4 space-y-2 text-sm">
-                    <div className="flex flex-wrap gap-2">
-                      <dt className="font-semibold text-gray-800">Payment (Stripe):</dt>
-                      <dd className="text-text-secondary capitalize">{pay || "—"}</dd>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <dt className="font-semibold text-gray-800">Fulfillment:</dt>
-                      <dd className="text-text-secondary capitalize">{fulfill.replace(/_/g, " ")}</dd>
-                    </div>
-                    {pay === "paid" && (
-                      <div className="pt-2 border-t border-gray-100">
-                        <p className="font-semibold text-gray-800 mb-1">Admin payout</p>
-                        {admin === "pending" && (
-                          <p className="text-amber-700">
-                            Pending admin confirmation — funds are held by the platform until approved.
+                  <div className="space-y-6">
+                    {showActions && (
+                      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                        <h2 className="font-bold text-gray-900 mb-4">Update fulfillment</h2>
+                        <p className="text-sm text-text-secondary mb-4">
+                          Stripe marks payment. You move the order from pending → on the way → delivered. Cancel if you
+                          cannot fulfill (not delivered orders only).
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {canShip && (
+                            <button
+                              type="button"
+                              disabled={updating}
+                              onClick={() => handleFulfillmentChange("on_the_way")}
+                              className="px-4 py-2 rounded-xl text-sm font-medium bg-primary-green/10 text-primary-green hover:bg-primary-green hover:text-white transition-colors disabled:opacity-60"
+                            >
+                              On the way
+                            </button>
+                          )}
+                          {canDeliver && fulfill !== "delivered" && (
+                            <button
+                              type="button"
+                              disabled={updating}
+                              onClick={() => handleFulfillmentChange("delivered")}
+                              className="px-4 py-2 rounded-xl text-sm font-medium bg-primary-green/10 text-primary-green hover:bg-primary-green hover:text-white transition-colors disabled:opacity-60"
+                            >
+                              Delivered
+                            </button>
+                          )}
+                          {canCancel && (
+                            <button
+                              type="button"
+                              disabled={updating}
+                              onClick={() => handleFulfillmentChange("cancelled")}
+                              className="px-4 py-2 rounded-xl text-sm font-medium bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-60"
+                            >
+                              Cancel order
+                            </button>
+                          )}
+                        </div>
+                        {pay === "paid" && admin !== "approved" && (
+                          <p className="mt-3 text-xs text-amber-800">
+                            Shipping and delivery actions unlock after admin approves your payout.
                           </p>
-                        )}
-                        {admin === "approved" && (
-                          <p className="text-primary-green">
-                            Approved — you can mark the order on the way and delivered when fulfilled.
-                          </p>
-                        )}
-                        {admin === "rejected" && (
-                          <p className="text-red-700">Rejected — contact support.</p>
-                        )}
-                        {!admin && (
-                          <p className="text-gray-600">Awaiting admin review after Stripe payment.</p>
                         )}
                       </div>
                     )}
-                  </dl>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                    <Package className="w-5 h-5 text-primary-green" />
-                    <h2 className="font-bold text-gray-900">Items</h2>
                   </div>
-                  <ul className="divide-y divide-gray-100">
-                    {order.items?.map((item, i) => (
-                      <li key={i} className="px-5 py-4 flex justify-between items-center">
-                        <div>
-                          <p className="font-medium text-gray-900">{item.medicineName ?? "Medicine"}</p>
-                          <p className="text-sm text-text-secondary">
-                            Qty: {item.quantity} × ${(item.unitPrice || 0).toFixed(2)}
-                          </p>
-                        </div>
-                        <span className="font-semibold text-primary-green">
-                          ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
-
-                {showActions && (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                    <h2 className="font-bold text-gray-900 mb-4">Update fulfillment</h2>
-                    <p className="text-sm text-text-secondary mb-4">
-                      Stripe marks payment. You move the order from pending → on the way → delivered. Cancel if you
-                      cannot fulfill (not delivered orders only).
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {canShip && (
-                        <button
-                          type="button"
-                          disabled={updating}
-                          onClick={() => handleFulfillmentChange("on_the_way")}
-                          className="px-4 py-2 rounded-xl text-sm font-medium bg-primary-green/10 text-primary-green hover:bg-primary-green hover:text-white transition-colors disabled:opacity-60"
-                        >
-                          On the way
-                        </button>
-                      )}
-                      {canDeliver && fulfill !== "delivered" && (
-                        <button
-                          type="button"
-                          disabled={updating}
-                          onClick={() => handleFulfillmentChange("delivered")}
-                          className="px-4 py-2 rounded-xl text-sm font-medium bg-primary-green/10 text-primary-green hover:bg-primary-green hover:text-white transition-colors disabled:opacity-60"
-                        >
-                          Delivered
-                        </button>
-                      )}
-                      {canCancel && (
-                        <button
-                          type="button"
-                          disabled={updating}
-                          onClick={() => handleFulfillmentChange("cancelled")}
-                          className="px-4 py-2 rounded-xl text-sm font-medium bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-60"
-                        >
-                          Cancel order
-                        </button>
-                      )}
-                    </div>
-                    {pay === "paid" && admin !== "approved" && (
-                      <p className="mt-3 text-xs text-amber-800">
-                        Shipping and delivery actions unlock after admin approves your payout.
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </div>

@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { createCheckoutSessionHandler } from "./routes/createCheckoutSession.js";
 import { stripeWebhookHandler } from "./routes/stripeWebhook.js";
+import { googleAuthHandler } from "./routes/googleAuth.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -41,6 +42,10 @@ app.post(
 
 app.use(express.json());
 
+app.post("/api/auth/google", (req, res, next) => {
+  Promise.resolve(googleAuthHandler(req, res, next)).catch(next);
+});
+
 app.get("/api/health", (req, res) => {
   const showConfig = req.query.details === "1";
   const body = { ok: true };
@@ -50,6 +55,7 @@ app.get("/api/health", (req, res) => {
       stripeWebhook: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
       supabaseUrl: Boolean(process.env.SUPABASE_URL),
       supabaseServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+      googleClientIdFromEnv: Boolean(process.env.GOOGLE_CLIENT_ID?.trim?.()),
     };
   }
   res.json(body);

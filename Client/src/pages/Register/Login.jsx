@@ -4,6 +4,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { AuthContext } from "../../context/AuthContext.jsx";
 import { signIn } from "../../lib/authService.js";
 import { getRoleHome } from "../../components/ProtectedRoute.jsx";
+import GoogleSignInSection from "../../components/GoogleSignInSection.jsx";
 
 const VENDOR_ROLES = ["vendor", "admin"];
 const USER_ROLES = ["user", "doctor"];
@@ -115,6 +116,12 @@ export default function Login({ role = "user" }) {
               {loading ? "Logging in..." : "Login"}
             </button>
           </form>
+
+          <GoogleSignInSection
+            isVendorFlow={isVendorFlow}
+            setError={setError}
+            setLoading={setLoading}
+          />
 
           <Link to="/forgot-password" className="text-green-600 font-medium hover:underline mb-3">
             Forgot Password?

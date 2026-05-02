@@ -356,7 +356,7 @@ export default function VendorMedicine() {
   return (
     <VendorRouteGuard>
       <VendorLayout>
-        <div className="min-h-full bg-[#f5f5f5]">
+        <div className="min-h-full bg-background">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-gray-900">Medicine Inventory</h1>

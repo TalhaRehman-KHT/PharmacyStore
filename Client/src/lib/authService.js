@@ -6,6 +6,7 @@
 import { supabase } from "./supabase.js";
 import { hashPassword, verifyPassword, generateOTP } from "./passwordService.js";
 import { sendOTPEmail } from "./emailService.js";
+import { GOOGLE_WEB_CLIENT_ID } from "./googleConstants.js";
 
 const USER_STORAGE_KEY = "user";
 
@@ -99,6 +100,138 @@ export async function signUp({
   return toUserModel(userRow);
 }
 
+function decodeGoogleIdTokenPayload(credential) {
+  try {
+    const parts = credential.split(".");
+    if (parts.length !== 3) throw new Error("Invalid token");
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = base64.length % 4 === 0 ? "" : "=".repeat(4 - (base64.length % 4));
+    const json = atob(base64 + pad);
+    return JSON.parse(json);
+  } catch {
+    throw new Error("Invalid Google sign-in response.");
+  }
+}
+
+/**
+ * Sign in or register with Google ID token. Persists user in `users` with password_hash null and google_sub set.
+ * @param {object} opts
+ * @param {string} opts.credential - Google ID token (JWT) from OAuth
+ * @param {"user"|"vendor"} opts.role
+ */
+export async function signInWithGoogle({ credential, role }) {
+  const roleToUse = role === "vendor" ? "vendor" : "user";
+  const payload = decodeGoogleIdTokenPayload(credential);
+  const aud = payload.aud;
+  if (aud !== GOOGLE_WEB_CLIENT_ID && aud !== import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID) {
+    throw new Error("Google sign-in configuration error.");
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (payload.exp != null && payload.exp < nowSec) {
+    throw new Error("Google sign-in expired. Please try again.");
+  }
+  const googleSub = payload.sub;
+  const emailRaw = payload.email;
+  if (!googleSub || !emailRaw || String(emailRaw).trim() === "") {
+    throw new Error("Google did not provide an email. Allow email permission and try again.");
+  }
+  const emailLower = String(emailRaw).trim().toLowerCase();
+  const nameFromGoogle = (payload.name && String(payload.name).trim()) || emailLower.split("@")[0];
+  const emailVerified =
+    payload.email_verified === true || payload.email_verified === "true";
+
+  let { data: userRow } = await supabase
+    .from("users")
+    .select("*")
+    .eq("google_sub", googleSub)
+    .eq("role", roleToUse)
+    .maybeSingle();
+
+  if (!userRow) {
+    const { data: byEmail } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", emailLower)
+      .eq("role", roleToUse)
+      .maybeSingle();
+
+    if (byEmail) {
+      if (byEmail.password_hash != null && byEmail.google_sub != null && byEmail.google_sub !== googleSub) {
+        throw new Error("This email is linked to another Google account.");
+      }
+      const { data: linked, error: linkErr } = await supabase
+        .from("users")
+        .update({
+          google_sub: googleSub,
+          last_login: new Date().toISOString(),
+          name: byEmail.name || nameFromGoogle,
+          email_verified: byEmail.email_verified || emailVerified,
+        })
+        .eq("id", byEmail.id)
+        .select()
+        .single();
+      if (linkErr) throw new Error(linkErr.message || "Could not link Google account.");
+      userRow = linked;
+    }
+  }
+
+  if (!userRow) {
+    const now = new Date().toISOString();
+    const insertPayload = {
+      email: emailLower,
+      password_hash: null,
+      name: nameFromGoogle,
+      phone: null,
+      role: roleToUse,
+      company_name: null,
+      address: null,
+      google_sub: googleSub,
+      email_verified: emailVerified,
+      phone_verified: false,
+      is_active: true,
+      last_login: now,
+    };
+    const { data: inserted, error: insertError } = await supabase
+      .from("users")
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    if (insertError) {
+      if (insertError.code === "23505") {
+        throw new Error(
+          `An account with this email already exists for ${roleToUse === "vendor" ? "vendor" : "customer"}.`,
+        );
+      }
+      throw new Error(insertError.message || "Database error");
+    }
+    userRow = inserted;
+  } else {
+    if (userRow.is_active === false) {
+      throw new Error("Your account has been deactivated. Please contact support.");
+    }
+    const { data: updated, error: upErr } = await supabase
+      .from("users")
+      .update({
+        last_login: new Date().toISOString(),
+        name: userRow.name || nameFromGoogle,
+        email_verified: userRow.email_verified || emailVerified,
+      })
+      .eq("id", userRow.id)
+      .select()
+      .single();
+    if (upErr) throw new Error(upErr.message);
+    userRow = updated;
+  }
+
+  if (userRow.is_active === false) {
+    throw new Error("Your account has been deactivated. Please contact support.");
+  }
+
+  const { password_hash: _, ...rest } = userRow;
+  return toUserModel(rest);
+}
+
 /**
  * Sign in: same as my_fyp CustomAuthService — fetch user by email AND role.
  * Pass role for vendor flow ("vendor") or user flow ("user").
@@ -126,6 +259,10 @@ export async function signIn({ email, password, role, allowedRoles }) {
   const userRow = rows?.length === 1 ? rows[0] : null;
   if (!userRow) {
     throw new Error("Account not found. Please use the correct login.");
+  }
+
+  if (userRow.password_hash == null) {
+    throw new Error("This account uses Google sign-in. Please use Continue with Google.");
   }
 
   const storedHash = userRow.password_hash;

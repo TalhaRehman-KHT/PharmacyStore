@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { signUp } from "../../lib/authService.js";
+import GoogleSignInSection from "../../components/GoogleSignInSection.jsx";
 
 const DEFAULT_FORM = {
   name: "",
@@ -149,6 +150,12 @@ export default function Register({ role = "user" }) {
               {loading ? "Creating..." : "Create Account"}
             </button>
           </form>
+
+          <GoogleSignInSection
+            isVendorFlow={isVendor}
+            setError={setError}
+            setLoading={setLoading}
+          />
 
           <p className="text-gray-600 text-sm my-1">
             Already have an account?{" "}

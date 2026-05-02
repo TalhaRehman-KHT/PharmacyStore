@@ -44,7 +44,7 @@ export default function VendorExpiringSoon() {
   return (
     <VendorRouteGuard>
       <VendorLayout>
-        <div className="min-h-full bg-[#f5f5f5]">
+        <div className="min-h-full bg-background">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
             <Link
               to="/vendor/medicine"

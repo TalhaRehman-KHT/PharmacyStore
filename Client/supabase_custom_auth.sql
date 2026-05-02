@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
   name TEXT NOT NULL,
   phone TEXT,
   role TEXT NOT NULL CHECK (role IN ('user', 'vendor', 'admin', 'doctor')),
@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   address TEXT,
   city TEXT,
   state TEXT,
+  google_sub TEXT,
   email_verified BOOLEAN DEFAULT FALSE,
   phone_verified BOOLEAN DEFAULT FALSE,
   is_active BOOLEAN DEFAULT TRUE,
@@ -24,6 +25,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Allow same email across roles (customer vs vendor), but not within the same role.
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_role_key ON users (email, role);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub_role_idx ON users (google_sub, role) WHERE google_sub IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS otps (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -76,6 +79,10 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Invalid email or password.';
+  END IF;
+
+  IF stored IS NULL THEN
+    RAISE EXCEPTION 'This account signs in with Google. Use Continue with Google.';
   END IF;
 
   salt_part := split_part(stored, ':', 1);

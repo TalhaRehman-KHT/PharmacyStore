@@ -135,7 +135,7 @@ export default function VendorSettings() {
 
   return (
     <VendorLayout>
-      <div className="min-h-full bg-[#f5f5f5]">
+      <div className="min-h-full bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
           {/* Page title */}
           <div className="mb-8">
