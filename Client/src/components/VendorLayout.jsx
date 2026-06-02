@@ -131,7 +131,7 @@ export default function VendorLayout({ children }) {
         />
       )}
       <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-sidebar text-white flex flex-col transform transition-transform duration-200 ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-sidebar text-white flex flex-col transform transition-transform duration-200 ${
           mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-label="Sidebar"

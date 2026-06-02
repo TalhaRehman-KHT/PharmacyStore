@@ -138,7 +138,7 @@ export default function UserCart() {
 
   return (
     <UserLayout>
-      <div className="px-4 sm:px-6 py-4 max-w-7xl mx-auto">
+      <div className="px-3 min-[380px]:px-4 sm:px-6 py-4 max-w-7xl mx-auto">
         <h2 className="text-xl font-bold text-gray-900 mb-3">Cart</h2>
 
         {error && (
@@ -146,7 +146,7 @@ export default function UserCart() {
         )}
 
         {carts.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] p-8 text-center">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] p-5 sm:p-8 text-center">
             <div className="w-16 h-16 mx-auto mb-3 rounded-xl bg-primary-green/10 flex items-center justify-center">
               <ShoppingCart className="w-10 h-10 text-primary-green" />
             </div>
@@ -168,8 +168,8 @@ export default function UserCart() {
                   key={cart.id}
                   className="bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden"
                 >
-                  <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100">
-                    <span className="font-bold text-text-primary">{cart.pharmacyName}</span>
+                  <div className="px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100">
+                    <span className="font-bold text-text-primary min-w-0 break-words">{cart.pharmacyName}</span>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-bold text-primary-green">${cart.subtotal.toFixed(2)}</span>
                       <button
@@ -185,24 +185,26 @@ export default function UserCart() {
                   {cart.items.map((item) => (
                     <div
                       key={item.id}
-                      className="px-4 py-3 flex items-center gap-3 border-t border-gray-100"
+                      className="px-3 sm:px-4 py-3 flex flex-col min-[480px]:flex-row min-[480px]:items-center gap-3 border-t border-gray-100"
                     >
-                      <div className="w-14 h-14 rounded-xl bg-primary-green/10 flex items-center justify-center shrink-0 overflow-hidden">
-                        {item.imageUrl ? (
-                          <img
-                            src={item.imageUrl}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Pill className="w-7 h-7 text-primary-green" />
-                        )}
+                      <div className="flex items-center gap-3 w-full min-[480px]:flex-1 min-w-0">
+                        <div className="w-14 h-14 rounded-xl bg-primary-green/10 flex items-center justify-center shrink-0 overflow-hidden">
+                          {item.imageUrl ? (
+                            <img
+                              src={item.imageUrl}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Pill className="w-7 h-7 text-primary-green" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-text-primary break-words">{item.medicineName}</p>
+                          <p className="text-sm text-text-secondary">${item.unitPrice.toFixed(2)} each</p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-text-primary">{item.medicineName}</p>
-                        <p className="text-sm text-text-secondary">${item.unitPrice.toFixed(2)} each</p>
-                      </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between min-[480px]:justify-end gap-2 w-full min-[480px]:w-auto">
                         <div className="flex items-center rounded-xl bg-background">
                           <button
                             type="button"
@@ -242,9 +244,9 @@ export default function UserCart() {
                 <span className="text-gray-500">Subtotal</span>
                 <span className="font-bold text-text-primary">${grandTotal.toFixed(2)}</span>
               </div>
-              <div className="border-t border-gray-100 pt-3 flex justify-between items-center mb-4">
+              <div className="border-t border-gray-100 pt-3 flex justify-between items-center gap-3 mb-4">
                 <span className="text-lg font-bold text-text-primary">Total</span>
-                <span className="text-2xl font-bold text-primary-green">${grandTotal.toFixed(2)}</span>
+                <span className="text-xl sm:text-2xl font-bold text-primary-green text-right">${grandTotal.toFixed(2)}</span>
               </div>
               {carts.length === 1 ? (
                 <button

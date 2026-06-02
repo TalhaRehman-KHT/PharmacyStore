@@ -66,7 +66,7 @@ export default function UserOrderDetail() {
   return (
     <UserLayout>
       <div className="min-h-full bg-background">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
+        <div className="max-w-2xl mx-auto px-3 min-[380px]:px-4 sm:px-6 py-5 sm:py-6">
           <button
             type="button"
             onClick={() => navigate("/user/orders")}
@@ -77,19 +77,19 @@ export default function UserOrderDetail() {
           </button>
 
           {loading ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-8 text-center">
               <div className="w-10 h-10 border-2 border-primary-green border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-text-secondary mt-3">Loading order…</p>
             </div>
           ) : !order ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center text-text-secondary">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-8 text-center text-text-secondary">
               Order not found
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                  <h1 className="text-xl font-bold text-gray-900">Order #{String(order.id).slice(0, 8)}</h1>
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900 break-words">Order #{String(order.id).slice(0, 8)}</h1>
                   <span
                     className="px-3 py-1.5 rounded-lg text-sm font-semibold"
                     style={{ backgroundColor: style.bg, color: style.text }}
@@ -147,14 +147,14 @@ export default function UserOrderDetail() {
                       const subtotal =
                         (item.quantity || 0) * (item.unitPrice || item.totalPrice / (item.quantity || 1) || 0);
                       return (
-                        <li key={item.id || i} className="px-5 py-4 flex justify-between items-start gap-4">
+                        <li key={item.id || i} className="px-4 sm:px-5 py-4 flex flex-col min-[420px]:flex-row min-[420px]:justify-between min-[420px]:items-start gap-2 min-[420px]:gap-4">
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-gray-900">{item.medicineName ?? "Medicine"}</p>
+                            <p className="font-medium text-gray-900 break-words">{item.medicineName ?? "Medicine"}</p>
                             <p className="text-sm text-text-secondary mt-0.5">
                               Qty: {item.quantity} × ${(item.unitPrice ?? 0).toFixed(2)}
                             </p>
                           </div>
-                          <span className="font-semibold text-gray-900 shrink-0">
+                          <span className="font-semibold text-gray-900 shrink-0 min-[420px]:text-right">
                             ${(item.totalPrice ?? subtotal).toFixed(2)}
                           </span>
                         </li>

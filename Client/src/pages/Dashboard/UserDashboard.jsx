@@ -120,9 +120,9 @@ export default function UserDashboard() {
   return (
     <UserLayout>
       <div className="min-h-full">
-        <div className="px-4 sm:px-6 py-4 pb-6 max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-900">Home</h1>
+        <div className="px-3 min-[380px]:px-4 sm:px-6 py-4 pb-6 max-w-7xl mx-auto">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Home</h1>
             <button
               type="button"
               onClick={() => load()}
@@ -133,10 +133,10 @@ export default function UserDashboard() {
               <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-3">Overview</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3">Overview</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
             <div
-                className="rounded-xl p-4 border shadow-[0_4px_10px_var(--color-card-shadow)] transition-shadow hover:shadow-md"
+              className="rounded-xl p-4 border shadow-[0_4px_10px_var(--color-card-shadow)] transition-shadow hover:shadow-md"
               style={{ borderColor: CARD_STYLES.green.border, background: CARD_STYLES.green.bg }}
             >
               <div className="flex items-start justify-between">
@@ -147,13 +147,13 @@ export default function UserDashboard() {
                   <ShoppingBag className="w-5 h-5 text-white" />
                 </div>
               </div>
-                <p className={`text-2xl font-bold tracking-tight mt-2 ${CARD_STYLES.green.valueClass}`}>
+              <p className={`text-2xl font-bold tracking-tight mt-2 ${CARD_STYLES.green.valueClass}`}>
                 {loading ? "—" : activeCount}
               </p>
               <p className="text-xs font-medium text-text-secondary mt-0.5 truncate">Active Orders</p>
             </div>
             <div
-                className="rounded-xl p-4 border shadow-[0_4px_10px_var(--color-card-shadow)] transition-shadow hover:shadow-md"
+              className="rounded-xl p-4 border shadow-[0_4px_10px_var(--color-card-shadow)] transition-shadow hover:shadow-md"
               style={{ borderColor: CARD_STYLES.blue.border, background: CARD_STYLES.blue.bg }}
             >
               <div className="flex items-start justify-between">
@@ -172,13 +172,13 @@ export default function UserDashboard() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] overflow-hidden mb-5">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary-green/10 flex items-center justify-center">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-primary-green/10 flex items-center justify-center shrink-0">
                 <BarChart3 className="w-5 h-5 text-primary-green" />
               </div>
-              <div>
-            <h2 className="text-base font-bold text-gray-900">Your Activity</h2>
-            <p className="text-xs text-gray-500">Prescriptions, reminders & cart</p>
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-gray-900">Your Activity</h2>
+                <p className="text-xs text-gray-500 truncate">Prescriptions, reminders & cart</p>
               </div>
             </div>
             <div className="p-4">
@@ -224,7 +224,7 @@ export default function UserDashboard() {
           </div>
           <div className="space-y-2">
             {recentOrders.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] p-6 flex flex-col items-center justify-center text-center">
+              <div className="bg-white rounded-xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] p-5 sm:p-6 flex flex-col items-center justify-center text-center">
                 <ShoppingBag className="w-12 h-12 text-text-secondary/50 mb-3" />
                 <p className="text-sm text-gray-500">No orders yet</p>
               </div>
@@ -253,7 +253,7 @@ export default function UserDashboard() {
                     <div className="flex-1 min-w-0">
                       <p className="text-[15px] font-bold text-gray-900 truncate">Order #{order.id}</p>
                       <p className="text-[13px] text-gray-500 truncate mt-0.5">{itemsPreview || "No items"}</p>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
                         <StatusBadge order={order} />
                         <span className="text-xs text-gray-500">
                           {order.items.length} {order.items.length === 1 ? "item" : "items"}

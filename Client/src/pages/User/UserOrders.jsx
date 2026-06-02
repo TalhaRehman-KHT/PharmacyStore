@@ -61,7 +61,7 @@ export default function UserOrders() {
 
   return (
     <UserLayout>
-      <div className="px-4 sm:px-6 py-4 max-w-5xl mx-auto">
+      <div className="px-3 min-[380px]:px-4 sm:px-6 py-4 max-w-5xl mx-auto">
         <h2 className="text-xl font-bold text-gray-900 mb-1">My orders</h2>
         <p className="text-sm text-text-secondary mb-4">
           Track payment and delivery: <span className="font-medium">Pending</span> includes unpaid or paid orders still
@@ -73,7 +73,7 @@ export default function UserOrders() {
             <div className="w-10 h-10 border-2 border-primary-green border-t-transparent rounded-full animate-spin" />
           </div>
         ) : error ? (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 text-center">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 sm:p-6 text-center">
             <p className="text-text-secondary mb-4">{error}</p>
             <button type="button" onClick={loadOrders} className="text-primary-green font-semibold hover:underline">
               Retry
@@ -99,7 +99,7 @@ export default function UserOrders() {
             </div>
 
             {orders.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 sm:p-8 text-center">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-green/10 flex items-center justify-center">
                   <ShoppingBag className="w-8 h-8 text-primary-green" />
                 </div>
@@ -165,7 +165,7 @@ export default function UserOrders() {
                         to={`/user/orders/${order.id}`}
                         className="block bg-white rounded-xl border border-gray-100 shadow-sm p-3 active:scale-[0.99] transition-transform"
                       >
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 min-w-0">
                           <div
                             className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
                             style={{
@@ -175,15 +175,15 @@ export default function UserOrders() {
                             <ShoppingBag className="w-5 h-5 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex justify-between gap-2">
-                              <p className="font-bold text-text-primary text-sm">#{String(order.id).slice(0, 8)}</p>
+                            <div className="flex justify-between gap-2 min-w-0">
+                              <p className="font-bold text-text-primary text-sm min-w-0 truncate">#{String(order.id).slice(0, 8)}</p>
                               <p className="font-bold text-primary-green text-sm shrink-0">
                                 ${order.totalAmount != null ? order.totalAmount.toFixed(2) : "—"}
                               </p>
                             </div>
                             <p className="text-xs text-text-secondary truncate mt-0.5">{order.pharmacyName}</p>
                             <p className="text-xs text-text-secondary truncate">{itemsPreview || "—"}</p>
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
                               <StatusBadge order={order} />
                               <span className="text-xs text-gray-400">{order.orderDate}</span>
                             </div>

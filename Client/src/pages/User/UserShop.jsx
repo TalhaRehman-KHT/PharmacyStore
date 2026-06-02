@@ -89,7 +89,7 @@ export default function UserShop() {
 
   return (
     <UserLayout>
-      <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6 max-w-6xl mx-auto min-h-full w-full">
+      <div className="px-3 min-[380px]:px-4 sm:px-6 lg:px-8 py-4 sm:py-6 max-w-6xl mx-auto min-h-full w-full">
         <div className="flex items-center justify-between gap-4 mb-4 sm:mb-5">
           <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Shop</h2>
           <button
@@ -108,7 +108,7 @@ export default function UserShop() {
             <div className="w-10 h-10 border-2 border-primary-green border-t-transparent rounded-full animate-spin" />
           </div>
         ) : error ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] p-8 text-center">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] p-5 sm:p-8 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-50 flex items-center justify-center">
               <X className="w-8 h-8 text-red-500" />
             </div>
@@ -133,7 +133,7 @@ export default function UserShop() {
                   placeholder="Search medicines..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-border bg-white focus:outline-none focus:ring-2 focus:ring-primary-green/20 focus:border-primary-green text-text-primary"
+                className="w-full pl-10 pr-10 py-3 rounded-xl border border-border bg-white focus:outline-none focus:ring-2 focus:ring-primary-green/20 focus:border-primary-green text-text-primary text-sm sm:text-base"
                 />
                 {search && (
                   <button
@@ -167,14 +167,14 @@ export default function UserShop() {
             </div>
 
             {filtered.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] p-12 text-center">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] p-6 sm:p-12 text-center">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-green/10 flex items-center justify-center">
                   <Pill className="w-10 h-10 text-primary-green" />
                 </div>
                 <p className="text-text-secondary font-medium">No medicines found</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 items-stretch">
+              <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 items-stretch">
                 {filtered.map((m) => (
                   <div
                     key={m.id}
@@ -244,7 +244,7 @@ export default function UserShop() {
               <div className="flex-shrink-0 pt-3 pb-2 flex justify-center">
                 <div className="w-10 h-1 rounded-full bg-border" />
               </div>
-              <div className="flex-1 overflow-y-auto px-6 pb-6">
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6">
                 <div className="w-28 h-28 mx-auto rounded-2xl bg-gradient-to-br from-primary-green/20 to-primary-green/10 flex items-center justify-center mb-6">
                   {detailMedicine.imageUrl ? (
                     <img

@@ -4,7 +4,7 @@
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 // Same as my_fyp: _visionModelName = 'gemini-3-flash-preview'
-const VISION_MODEL = "gemini-3-flash-preview";
+const VISION_MODEL = "gemini-3.5-flash";
 
 const PROMPT = `Analyze this medicine packaging or label image. Extract the following and return ONLY valid JSON, no markdown or extra text:
 {
