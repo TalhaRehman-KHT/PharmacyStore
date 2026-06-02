@@ -4,8 +4,14 @@ import UserLayout from "../../components/UserLayout.jsx";
 import { AuthContext } from "../../context/AuthContext.jsx";
 import { analyzePrescription } from "../../lib/geminiService.js";
 import { savePrescription } from "../../lib/prescriptionService.js";
-import { ChevronLeft, Upload, AlertTriangle, Calendar, Clock, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Upload, AlertTriangle, Calendar, Clock, Plus, Trash2, FileText } from "lucide-react";
 import toast from "react-hot-toast";
+
+const PRESCRIPTION_FILE_ACCEPT = "image/*,application/pdf";
+
+function isPrescriptionFile(file) {
+  return file?.type?.startsWith("image/") || file?.type === "application/pdf";
+}
 
 function toMedicinesWithReminders(medicines) {
   return (medicines || []).map((m) => ({
@@ -37,11 +43,20 @@ export default function UserHealthScanPrescription() {
 
   const handleFileChange = (e) => {
     const f = e.target.files?.[0];
-    if (!f?.type.startsWith("image/")) return;
+    if (!isPrescriptionFile(f)) {
+      toast.error("Please upload a prescription image or PDF");
+      e.target.value = "";
+      return;
+    }
     setFile(f);
+    setPreview(null);
     setError(null);
     setResult(null);
     setMedicines([]);
+    if (f.type === "application/pdf") {
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => setPreview(reader.result);
     reader.readAsDataURL(f);
@@ -50,7 +65,7 @@ export default function UserHealthScanPrescription() {
 
   const handleAnalyze = async () => {
     if (!file) {
-      toast.error("Please upload a prescription image");
+      toast.error("Please upload a prescription image or PDF");
       return;
     }
     setAnalyzing(true);
@@ -117,7 +132,7 @@ export default function UserHealthScanPrescription() {
       return;
     }
     if (!file) {
-      toast.error("Please upload a prescription image");
+      toast.error("Please upload a prescription image or PDF");
       return;
     }
     const needExpiry = medicines.filter((m) => !m.endDate);
@@ -181,7 +196,7 @@ export default function UserHealthScanPrescription() {
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Scan Prescription</h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                Upload a photo; AI extracts medicines. Set expiry and reminder times, then save.
+                Upload a photo or PDF; AI extracts medicines. Set expiry and reminder times, then save.
               </p>
             </div>
           </header>
@@ -189,33 +204,41 @@ export default function UserHealthScanPrescription() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
             {/* Left: upload & preview */}
             <div className="space-y-4">
-              {!preview ? (
+              {!file ? (
                 <label className="block p-8 rounded-2xl border-2 border-dashed border-primary-green/40 bg-white hover:bg-primary-green/5 transition-colors cursor-pointer">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept={PRESCRIPTION_FILE_ACCEPT}
                     className="sr-only"
                     onChange={handleFileChange}
                   />
                   <div className="flex flex-col items-center text-center">
                     <Upload className="w-14 h-14 text-primary-green mb-4" />
                     <span className="font-semibold text-primary-green text-lg">Upload prescription</span>
-                    <span className="text-sm text-gray-500 mt-1">Click or drag image (camera or gallery)</span>
+                    <span className="text-sm text-gray-500 mt-1">Click or drag image or PDF</span>
                   </div>
                 </label>
               ) : (
                 <div className="space-y-4">
                   <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm">
-                    <img
-                      src={preview}
-                      alt="Prescription"
-                      className="w-full max-h-80 object-contain bg-gray-50"
-                    />
+                    {file.type === "application/pdf" ? (
+                      <div className="min-h-60 bg-gray-50 flex flex-col items-center justify-center px-6 py-10 text-center">
+                        <FileText className="w-14 h-14 text-primary-green mb-4" />
+                        <p className="font-semibold text-gray-900 break-all">{file.name}</p>
+                        <p className="text-sm text-gray-500 mt-1">PDF prescription selected</p>
+                      </div>
+                    ) : (
+                      <img
+                        src={preview}
+                        alt="Prescription"
+                        className="w-full max-h-80 object-contain bg-gray-50"
+                      />
+                    )}
                   </div>
                   <div className="flex gap-3">
                     <label className="flex-1 py-3 rounded-xl border border-gray-200 bg-white text-center text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors">
-                      Change image
-                      <input type="file" accept="image/*" className="sr-only" onChange={handleFileChange} />
+                      Change file
+                      <input type="file" accept={PRESCRIPTION_FILE_ACCEPT} className="sr-only" onChange={handleFileChange} />
                     </label>
                     <button
                       type="button"

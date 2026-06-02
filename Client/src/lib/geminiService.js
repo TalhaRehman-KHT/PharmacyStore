@@ -131,7 +131,11 @@ export async function analyzeMedicineLabel(file) {
   return parseResponse(text || "{}");
 }
 
-const PRESCRIPTION_PROMPT = `Analyze this medical prescription image. Extract all medicines and return ONLY valid JSON, no markdown.
+function isPrescriptionFile(file) {
+  return file?.type?.startsWith("image/") || file?.type === "application/pdf";
+}
+
+const PRESCRIPTION_PROMPT = `Analyze this medical prescription image or PDF. Extract all medicines and return ONLY valid JSON, no markdown.
 
 For each medicine provide:
 - name: medicine name (brand or generic)
@@ -174,12 +178,12 @@ function parsePrescriptionResponse(text) {
 }
 
 /**
- * Analyze prescription image. Returns { medicines: [{name, dosage, purpose, instructions}], warnings: [], summary }.
- * @param {File} file - Prescription image
+ * Analyze prescription image/PDF. Returns { medicines: [{name, dosage, purpose, instructions}], warnings: [], summary }.
+ * @param {File} file - Prescription image or PDF
  */
 export async function analyzePrescription(file) {
   if (!API_KEY) throw new Error("Gemini API key not configured");
-  if (!file?.type?.startsWith("image/")) throw new Error("Please select an image file");
+  if (!isPrescriptionFile(file)) throw new Error("Please select an image or PDF file");
 
   const base64 = await toBase64(file);
   const mimeType = file.type || "image/jpeg";

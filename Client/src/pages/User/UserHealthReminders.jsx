@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import UserLayout from "../../components/UserLayout.jsx";
 import { AuthContext } from "../../context/AuthContext.jsx";
 import { getReminders, getExpiringSoonReminders, formatTime, getNextOccurrence, formatTimeRemaining } from "../../lib/reminderService.js";
-import { ChevronLeft, Clock, Calendar, Pill } from "lucide-react";
+import { ChevronLeft, Clock, Calendar, Pill, FileText } from "lucide-react";
 
 function formatDateStr(dateStr) {
   if (!dateStr) return "—";
@@ -18,6 +18,36 @@ function daysUntil(endDateStr) {
   const end = new Date(endDateStr);
   end.setHours(0, 0, 0, 0);
   return Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+}
+
+function isPdfUrl(url) {
+  return /\.pdf(?:$|\?)/i.test(url || "");
+}
+
+function PrescriptionThumb({ url, fallback: FallbackIcon = Pill, color = "#008F0B" }) {
+  if (!url) return <FallbackIcon className="w-8 h-8" style={{ color }} />;
+
+  if (isPdfUrl(url)) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="w-full h-full flex items-center justify-center"
+        aria-label="Open prescription PDF"
+      >
+        <FileText className="w-8 h-8" style={{ color }} />
+      </a>
+    );
+  }
+
+  return (
+    <img
+      src={url}
+      alt=""
+      className="w-full h-full object-cover"
+    />
+  );
 }
 
 function ReminderCard({ reminder, showNext }) {
@@ -37,15 +67,7 @@ function ReminderCard({ reminder, showNext }) {
       />
       <div className="p-4 sm:p-5 flex-1 flex items-center gap-4">
         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-primary-green/10 flex items-center justify-center overflow-hidden shrink-0">
-          {reminder.prescriptionImageUrl ? (
-            <img
-              src={reminder.prescriptionImageUrl}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <Pill className="w-8 h-8 text-primary-green" />
-          )}
+          <PrescriptionThumb url={reminder.prescriptionImageUrl} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-gray-900">{reminder.medicineName}</p>
@@ -89,15 +111,7 @@ function ExpiryCard({ reminder }) {
           className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center overflow-hidden shrink-0"
           style={{ backgroundColor: `${color}18` }}
         >
-          {reminder.prescriptionImageUrl ? (
-            <img
-              src={reminder.prescriptionImageUrl}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <Calendar className="w-8 h-8" style={{ color }} />
-          )}
+          <PrescriptionThumb url={reminder.prescriptionImageUrl} fallback={Calendar} color={color} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-gray-900">{reminder.medicineName}</p>

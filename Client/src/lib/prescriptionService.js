@@ -1,13 +1,25 @@
 /**
- * Prescription service – upload image, save to prescriptions table, create reminders.
+ * Prescription service – upload prescription file, save to prescriptions table, create reminders.
  * Mirrors my_fyp PrescriptionService.savePrescription.
  */
 import { supabase } from "./supabase.js";
 
 const BUCKET = "DatabaseAssets";
 
-function prescriptionImagePath(userId) {
-  return `prescriptions/${userId}/${Date.now()}.jpg`;
+function isPrescriptionFile(file) {
+  return file?.type?.startsWith("image/") || file?.type === "application/pdf";
+}
+
+function prescriptionFilePath(userId, file) {
+  const extensionByType = {
+    "application/pdf": "pdf",
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+  const extension = extensionByType[file?.type] || "jpg";
+  return `prescriptions/${userId}/${Date.now()}.${extension}`;
 }
 
 /**
@@ -20,20 +32,20 @@ function timeToApi({ hour, minute }) {
 }
 
 /**
- * Save prescription: upload image, insert prescriptions row, then for each medicine
+ * Save prescription: upload file, insert prescriptions row, then for each medicine
  * insert reminders + reminder_times.
  * @param {string} userId
- * @param {File} imageFile - Prescription image file
+ * @param {File} imageFile - Prescription image/PDF file
  * @param {string} aiExtractedText
  * @param {string} aiSummary
  * @param {Array<{ name: string, dosage?: string, purpose?: string, instructions?: string, endDate: string | null, reminderTimes: Array<{ hour: number, minute: number }> }>} medicines
  */
 export async function savePrescription(userId, imageFile, aiExtractedText, aiSummary, medicines) {
   if (!userId) throw new Error("User ID required");
-  if (!imageFile?.type?.startsWith("image/")) throw new Error("Please provide an image file");
+  if (!isPrescriptionFile(imageFile)) throw new Error("Please provide an image or PDF file");
   if (!medicines?.length) throw new Error("At least one medicine required");
 
-  const path = prescriptionImagePath(userId);
+  const path = prescriptionFilePath(userId, imageFile);
   const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, imageFile, {
     cacheControl: "3600",
     upsert: true,
