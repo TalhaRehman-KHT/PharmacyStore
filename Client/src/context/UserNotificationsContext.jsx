@@ -12,8 +12,8 @@ export const UserNotificationsContext = createContext({
   notifications: [],
   unreadCount: 0,
   markAllRead: () => {},
-  markRead: (_id) => {},
-  getById: (_id) => null,
+  markRead: () => {},
+  getById: () => null,
   clearAll: () => {},
 });
 
@@ -98,11 +98,7 @@ export function UserNotificationsProvider({ children }) {
     };
   }, [user?.id]);
 
-  const markAllRead = () => setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-  const markRead = (id) =>
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
   const getById = (id) => notifications.find((n) => n.id === id) ?? null;
-  const clearAll = () => setNotifications([]);
  
   // keep DB in sync for reads/clears
   const markAllReadDb = async () => {

@@ -20,7 +20,6 @@ export async function getTotalUnitsSold(pharmacyId) {
     .select("quantity, batch_id")
     .in("order_id", orderIds);
 
-  const batchIds = new Set((items || []).map((i) => i.batch_id).filter(Boolean));
   const batches = await getPharmacyMedicines(pharmacyId);
   const pharmacyBatchIds = new Set(batches.map((b) => b.id));
 

@@ -21,7 +21,6 @@ import toast from "react-hot-toast";
 export default function UserShop() {
   const { user } = useContext(AuthContext);
   const [medicines, setMedicines] = useState([]);
-  const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -32,9 +31,8 @@ export default function UserShop() {
     setLoading(true);
     setError("");
     getShopMedicines()
-      .then(({ medicines: m, batches: b }) => {
+      .then(({ medicines: m }) => {
         setMedicines(m);
-        setBatches(b);
       })
       .catch((err) => {
         setError(err?.message || "Failed to load medicines");

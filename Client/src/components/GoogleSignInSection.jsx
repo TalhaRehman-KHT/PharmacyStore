@@ -45,7 +45,7 @@ export default function GoogleSignInSection({ isVendorFlow, setError, setLoading
   return (
     <div className="w-full mt-4 flex flex-col items-center gap-2">
       <p className="text-gray-400 text-xs w-full text-center">or</p>
-      <div className="w-full flex justify-center min-h-[40px]">
+      <div className="w-full flex justify-center min-h-10">
         <GoogleLogin
           onSuccess={handleSuccess}
           onError={() => setError?.("Google sign-in was cancelled or failed.")}

@@ -65,16 +65,6 @@ const CARD_STYLES = {
   },
 };
 
-const ordersPerDay = [
-  { label: "Mon", orders: 0 },
-  { label: "Tue", orders: 0 },
-  { label: "Wed", orders: 0 },
-  { label: "Thu", orders: 0 },
-  { label: "Fri", orders: 0 },
-  { label: "Sat", orders: 0 },
-  { label: "Sun", orders: 0 },
-];
-
 function formatCurrency(amount) {
   if (amount >= 1000) return `$${(amount / 1000).toFixed(1)}k`;
   return `$${amount.toFixed(0)}`;

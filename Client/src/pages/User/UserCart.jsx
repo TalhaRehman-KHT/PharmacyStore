@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import UserLayout from "../../components/UserLayout.jsx";
 import {
@@ -22,7 +22,7 @@ export default function UserCart() {
   const [updatingIds, setUpdatingIds] = useState(new Set());
   const [clearingIds, setClearingIds] = useState(new Set());
 
-  const loadCarts = () => {
+  const loadCarts = useCallback(() => {
     if (!user?.id) {
       setCarts([]);
       setLoading(false);
@@ -34,11 +34,11 @@ export default function UserCart() {
       .then(setCarts)
       .catch((err) => setError(err.message || "Failed to load cart"))
       .finally(() => setLoading(false));
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     loadCarts();
-  }, [user?.id]);
+  }, [loadCarts]);
 
   useEffect(() => {
     const checkout = searchParams.get("checkout");
@@ -52,7 +52,7 @@ export default function UserCart() {
     const next = new URLSearchParams(searchParams);
     next.delete("checkout");
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, loadCarts]);
 
   const grandTotal = carts.reduce((s, c) => s + c.subtotal, 0);
 

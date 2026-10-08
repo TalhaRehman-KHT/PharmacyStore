@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import { Link } from "react-router-dom";
 import UserLayout from "../../components/UserLayout.jsx";
 import {
@@ -40,7 +40,7 @@ export default function UserOrders() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("All");
 
-  const loadOrders = () => {
+  const loadOrders = useCallback(() => {
     if (!user?.id) {
       setOrders([]);
       setLoading(false);
@@ -53,11 +53,11 @@ export default function UserOrders() {
       .then(setOrders)
       .catch((err) => setError(err.message || "Failed to load orders"))
       .finally(() => setLoading(false));
-  };
+  }, [user?.id, filter]);
 
   useEffect(() => {
     loadOrders();
-  }, [user?.id, filter]);
+  }, [loadOrders]);
 
   return (
     <UserLayout>

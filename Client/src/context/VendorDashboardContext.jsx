@@ -7,7 +7,6 @@ import {
   getTotalRevenue,
 } from "../lib/vendorOrderService.js";
 import {
-  getPharmacyMedicines,
   getMedicineCount,
   getLowStockCount,
 } from "../lib/vendorMedicineService.js";

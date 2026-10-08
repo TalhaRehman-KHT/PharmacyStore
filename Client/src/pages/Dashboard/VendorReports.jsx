@@ -82,7 +82,7 @@ function SectionCard({ title, icon: Icon, iconColor, children }) {
 }
 
 export default function VendorReports() {
-  const { pharmacy, refresh } = useVendorDashboard();
+  const { pharmacy } = useVendorDashboard();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalSales, setTotalSales] = useState(0);

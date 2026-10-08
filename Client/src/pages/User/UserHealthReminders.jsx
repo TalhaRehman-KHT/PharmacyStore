@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import UserLayout from "../../components/UserLayout.jsx";
 import { AuthContext } from "../../context/AuthContext.jsx";
@@ -163,7 +163,7 @@ export default function UserHealthReminders() {
   const [loadingExpiring, setLoadingExpiring] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadReminders = async () => {
+  const loadReminders = useCallback(async () => {
     if (!user?.id) {
       setError("Please sign in to see reminders");
       setLoadingReminders(false);
@@ -179,9 +179,9 @@ export default function UserHealthReminders() {
     } finally {
       setLoadingReminders(false);
     }
-  };
+  }, [user?.id]);
 
-  const loadExpiring = async () => {
+  const loadExpiring = useCallback(async () => {
     if (!user?.id) {
       setLoadingExpiring(false);
       return;
@@ -195,12 +195,12 @@ export default function UserHealthReminders() {
     } finally {
       setLoadingExpiring(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     loadReminders();
     loadExpiring();
-  }, [user?.id]);
+  }, [loadReminders, loadExpiring]);
 
   const goManage = () => navigate("/user/health/reminders/manage");
 

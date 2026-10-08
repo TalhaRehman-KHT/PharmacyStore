@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import VendorLayout from "../../components/VendorLayout.jsx";
 import VendorRouteGuard from "../../components/VendorRouteGuard.jsx";
 import { getAdminOrders, updateAdminPaymentStatus } from "../../lib/adminOrderService.js";
@@ -22,7 +22,7 @@ export default function AdminOrders() {
   const [savingId, setSavingId] = useState(null);
   const [draftPayout, setDraftPayout] = useState({});
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     getAdminOrders({ filter: filter === "All" ? undefined : filter, limit: 200 })
       .then((rows) => {
@@ -40,11 +40,11 @@ export default function AdminOrders() {
         setOrders([]);
       })
       .finally(() => setLoading(false));
-  };
+  }, [filter]);
 
   useEffect(() => {
     load();
-  }, [filter]);
+  }, [load]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return orders;

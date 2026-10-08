@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import UserLayout from "../../components/UserLayout.jsx";
 import { AuthContext } from "../../context/AuthContext.jsx";
@@ -83,7 +83,7 @@ export default function UserHealthRemindersManage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadReminders = async () => {
+  const loadReminders = useCallback(async () => {
     if (!user?.id) {
       setError("Please sign in");
       setLoading(false);
@@ -99,11 +99,11 @@ export default function UserHealthRemindersManage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     loadReminders();
-  }, [user?.id]);
+  }, [loadReminders]);
 
   const handleEdit = (reminder) => {
     navigate(`/user/health/reminders/edit/${reminder.id}`, { state: { reminder } });

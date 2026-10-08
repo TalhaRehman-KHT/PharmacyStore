@@ -10,7 +10,6 @@ import {
   updateMedicine,
   updateBatch,
   deleteBatch,
-  deleteMedicine,
   batchStatus,
 } from "../../lib/vendorMedicineService.js";
 import { uploadMedicineImage } from "../../lib/vendorStorageService.js";

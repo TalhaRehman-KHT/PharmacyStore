@@ -23,7 +23,13 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Capitalized names are JSX components (e.g. `{ icon: Icon }` rendered as <Icon />).
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^[A-Z_]' }],
     },
+  },
+  {
+    // Context/route modules intentionally export hooks or helpers next to their provider.
+    files: ['src/context/**/*.jsx', 'src/components/ProtectedRoute.jsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   },
 ])
