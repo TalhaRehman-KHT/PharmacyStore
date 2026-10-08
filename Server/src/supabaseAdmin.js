@@ -2,6 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 
 let cached = null;
 
+/** Strip trailing slashes and a copied /rest/v1 suffix (would double the REST path). */
+export function normalizeSupabaseUrl(url) {
+  return String(url ?? "")
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/rest\/v1$/, "");
+}
+
 /**
  * Lazy client so importing the app does not throw when env is missing (e.g. misconfigured Vercel).
  * Call at request time; throws a clear error if vars are still unset.
@@ -9,7 +17,7 @@ let cached = null;
 export function getSupabaseAdmin() {
   if (cached) return cached;
 
-  const url = process.env.SUPABASE_URL?.trim();
+  const url = normalizeSupabaseUrl(process.env.SUPABASE_URL);
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   if (!url || !key) {

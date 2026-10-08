@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
+import toast from "react-hot-toast";
 import { signUp } from "../../lib/authService.js";
 import GoogleSignInSection from "../../components/GoogleSignInSection.jsx";
 
@@ -49,7 +50,7 @@ export default function Register({ role = "user" }) {
         address: null,
       });
 
-      alert("Account created. Please verify your email with the OTP sent to your inbox.");
+      toast.success("Account created. Check your inbox for the OTP.");
       navigate("/verify-otp", { state: { email: form.email.trim().toLowerCase(), role } });
     } catch (err) {
       setError(err.message || "Registration failed");
