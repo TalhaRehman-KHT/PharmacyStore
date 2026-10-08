@@ -1,0 +1,53 @@
+name: Pharmacy Store CI/CD
+
+on:
+  push:
+    branches:
+      - v4-fix
+  pull_request:
+    branches:
+      - v4-fix
+
+jobs:
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create Client .env
+        run: |
+          cat <<EOF > Client/.env
+          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_GOOGLE_WEB_CLIENT_ID=${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+          VITE_GEMINI_API_KEY=${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_EMAILJS_PUBLIC_KEY=${{ secrets.VITE_EMAILJS_PUBLIC_KEY }}
+          VITE_EMAILJS_SERVICE_ID=${{ secrets.VITE_EMAILJS_SERVICE_ID }}
+          VITE_EMAILJS_TEMPLATE_ID=${{ secrets.VITE_EMAILJS_TEMPLATE_ID }}
+          EOF
+
+      - name: Build Client Docker Image
+        run: |
+          docker build \
+            --secret id=env,src=Client/.env \
+            -t pharmacy-store-client ./Client
+
+      - name: Create Server .env
+        run: |
+          cat <<EOF > Server/.env
+          PORT=${{ secrets.PORT }}
+          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+          STRIPE_CURRENCY=${{ secrets.STRIPE_CURRENCY }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          EOF
+
+      - name: Build Server Docker Image
+        run: |
+          docker build \
+            -t pharmacy-store-server ./Server
