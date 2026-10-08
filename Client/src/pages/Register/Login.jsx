@@ -123,7 +123,7 @@ export default function Login({ role = "user" }) {
             setLoading={setLoading}
           />
 
-          <Link to="/forgot-password" className="text-green-600 font-medium hover:underline mb-3">
+          <Link to={`/forgot-password?role=${isVendorFlow ? "vendor" : "user"}`} className="text-green-600 font-medium hover:underline mb-3">
             Forgot Password?
           </Link>
 

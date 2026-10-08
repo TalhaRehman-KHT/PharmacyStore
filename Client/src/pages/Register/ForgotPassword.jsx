@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { requestPasswordReset } from "../../lib/authService.js";
 
 export default function ForgotPassword() {
+  const [searchParams] = useSearchParams();
+  const [role, setRole] = useState(searchParams.get("role") === "vendor" ? "vendor" : "user");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,7 +17,7 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      await requestPasswordReset(email.trim());
+      await requestPasswordReset({ email: email.trim(), role });
       const emailLower = email.trim().toLowerCase();
       navigate("/verify-reset-otp", { state: { email: emailLower } });
     } catch (err) {
@@ -39,6 +41,26 @@ export default function ForgotPassword() {
           </span>
 
           <form onSubmit={handleSubmit} className="w-full space-y-4">
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Account type">
+              {[
+                ["user", "Customer"],
+                ["vendor", "Vendor"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={role === value}
+                  onClick={() => setRole(value)}
+                  className={`py-2 rounded-lg border text-sm font-medium ${
+                    role === value ? "border-green-600 bg-green-50 text-green-700" : "border-gray-300 text-gray-600"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <input
               type="email"
               placeholder="Enter your email"
@@ -59,7 +81,7 @@ export default function ForgotPassword() {
             </button>
           </form>
 
-          <Link to="/user/login" className="text-green-600 font-medium hover:underline mt-4 inline-block">
+          <Link to={role === "vendor" ? "/vendor/login" : "/user/login"} className="text-green-600 font-medium hover:underline mt-4 inline-block">
             Back to Login
           </Link>
         </div>

@@ -73,7 +73,7 @@ export default function UserProfile() {
             title="Change Password"
             subtitle="Update your password via email OTP"
             color="#FF8F6B"
-            to="/forgot-password"
+            to="/forgot-password?role=user"
           />
         </div>
 

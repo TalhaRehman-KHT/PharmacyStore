@@ -284,31 +284,61 @@ export async function signIn({ email, password, role, allowedRoles }) {
   return toUserModel(rest);
 }
 
-/** Verify OTP (email_verification or password_reset). Marks OTP used and updates email_verified if type is email_verification. */
-export async function verifyOTP({ email, otpCode, otpType = "email_verification" }) {
-  const emailLower = email.trim().toLowerCase();
-  const now = new Date().toISOString();
+const MAX_OTP_ATTEMPTS = 5;
 
-  const { data: otpRow, error: fetchError } = await supabase
+/** Roles that share one login screen (and so one password-reset flow). */
+function rolesForFlow(role) {
+  return role === "vendor" ? ["vendor", "admin"] : ["user", "doctor"];
+}
+
+/**
+ * Check `otpCode` against the latest active OTP for email + type.
+ * Wrong codes count toward MAX_OTP_ATTEMPTS. Returns the OTP row on success.
+ */
+async function checkActiveOtp({ email, otpCode, otpType }) {
+  const emailLower = email.trim().toLowerCase();
+
+  const { data: otpRow, error } = await supabase
     .from("otps")
     .select("*")
     .eq("email", emailLower)
-    .eq("otp_code", otpCode)
     .eq("otp_type", otpType)
     .eq("is_used", false)
-    .gt("expires_at", now)
+    .gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (fetchError) throw new Error(fetchError.message);
+  if (error) throw new Error(error.message);
   if (!otpRow) throw new Error("Invalid or expired OTP code.");
-  if (otpRow.attempts >= 5) throw new Error("Too many failed attempts. Please request a new OTP.");
+  if ((otpRow.attempts ?? 0) >= MAX_OTP_ATTEMPTS) {
+    throw new Error("Too many failed attempts. Please request a new OTP.");
+  }
 
-  await supabase.from("otps").update({ is_used: true }).eq("id", otpRow.id);
+  if (otpRow.otp_code !== String(otpCode).trim()) {
+    await supabase
+      .from("otps")
+      .update({ attempts: (otpRow.attempts ?? 0) + 1 })
+      .eq("id", otpRow.id);
+    throw new Error("Invalid or expired OTP code.");
+  }
+
+  return otpRow;
+}
+
+async function markOtpUsed(otpId) {
+  const { error } = await supabase.from("otps").update({ is_used: true }).eq("id", otpId);
+  if (error) throw new Error(error.message);
+}
+
+/** Verify OTP (email_verification or password_reset). Marks OTP used and updates email_verified if type is email_verification. */
+export async function verifyOTP({ email, otpCode, otpType = "email_verification" }) {
+  const otpRow = await checkActiveOtp({ email, otpCode, otpType });
+  await markOtpUsed(otpRow.id);
 
   if (otpType === "email_verification") {
-    await supabase.from("users").update({ email_verified: true }).eq("id", otpRow.user_id);
+    const { error } = await supabase.from("users").update({ email_verified: true }).eq("id", otpRow.user_id);
+    if (error) throw new Error(error.message);
   }
 
   return true;
@@ -316,41 +346,31 @@ export async function verifyOTP({ email, otpCode, otpType = "email_verification"
 
 /** Verify OTP without marking used (for password reset flow). */
 export async function verifyOTPWithoutMarking({ email, otpCode, otpType }) {
-  const emailLower = email.trim().toLowerCase();
-  const now = new Date().toISOString();
-
-  const { data: otpRow, error } = await supabase
-    .from("otps")
-    .select("*")
-    .eq("email", emailLower)
-    .eq("otp_code", otpCode)
-    .eq("otp_type", otpType)
-    .eq("is_used", false)
-    .gt("expires_at", now)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !otpRow) throw new Error("Invalid or expired OTP code.");
-  if (otpRow.attempts >= 5) throw new Error("Too many failed attempts. Please request a new OTP.");
+  await checkActiveOtp({ email, otpCode, otpType });
   return true;
 }
 
-/** Request password reset: create OTP (password_reset). Does not reveal if email exists. */
-export async function requestPasswordReset(email) {
+/**
+ * Request password reset: create OTP (password_reset) for the account of this role.
+ * The same email may have a customer and a vendor account, so `role` picks one.
+ * Does not reveal if email exists.
+ */
+export async function requestPasswordReset({ email, role = "user" }) {
   const emailLower = email.trim().toLowerCase();
-  const { data: userRow } = await supabase
+  const { data: rows, error } = await supabase
     .from("users")
     .select("id")
     .eq("email", emailLower)
-    .maybeSingle();
+    .in("role", rolesForFlow(role))
+    .limit(2);
 
-  if (!userRow) return;
+  if (error) throw new Error(error.message);
+  if (rows?.length !== 1) return;
 
   const otpCode = generateOTP();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  await supabase.from("otps").insert({
-    user_id: userRow.id,
+  const { error: insertError } = await supabase.from("otps").insert({
+    user_id: rows[0].id,
     email: emailLower,
     otp_code: otpCode,
     otp_type: "password_reset",
@@ -358,6 +378,7 @@ export async function requestPasswordReset(email) {
     is_used: false,
     attempts: 0,
   });
+  if (insertError) throw new Error(insertError.message);
 
   const emailResult = await sendOTPEmail(emailLower, otpCode, "password_reset");
   if (!emailResult.ok) {
@@ -365,44 +386,20 @@ export async function requestPasswordReset(email) {
   }
 }
 
-/** Reset password: verify OTP then update password_hash. */
+/** Reset password: verify OTP, then update the account the OTP was issued for. */
 export async function resetPassword({ email, otpCode, newPassword }) {
-  await verifyOTPWithoutMarking({
-    email,
-    otpCode,
-    otpType: "password_reset",
-  });
-
-  const emailLower = email.trim().toLowerCase();
-  const { data: userRow, error: userError } = await supabase
-    .from("users")
-    .select("id")
-    .eq("email", emailLower)
-    .single();
-
-  if (userError || !userRow) throw new Error("User not found.");
+  const otpRow = await checkActiveOtp({ email, otpCode, otpType: "password_reset" });
+  if (!otpRow.user_id) throw new Error("User not found.");
 
   const passwordHash = await hashPassword(newPassword);
   const { error: updateError } = await supabase
     .from("users")
     .update({ password_hash: passwordHash })
-    .eq("id", userRow.id);
+    .eq("id", otpRow.user_id);
 
   if (updateError) throw new Error(updateError.message);
 
-  const { data: otpRow } = await supabase
-    .from("otps")
-    .select("id")
-    .eq("email", emailLower)
-    .eq("otp_code", otpCode)
-    .eq("otp_type", "password_reset")
-    .eq("is_used", false)
-    .limit(1)
-    .maybeSingle();
-
-  if (otpRow) {
-    await supabase.from("otps").update({ is_used: true }).eq("id", otpRow.id);
-  }
+  await markOtpUsed(otpRow.id);
 }
 
 /** Get current user by id from DB. */

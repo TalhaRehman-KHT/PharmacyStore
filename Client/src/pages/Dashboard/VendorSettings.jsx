@@ -197,7 +197,7 @@ export default function VendorSettings() {
                 subtitle="Update via email OTP"
                 iconBg="rgba(255,143,107,0.2)"
                 iconClass="text-primary-orange"
-                to="/forgot-password"
+                to="/forgot-password?role=vendor"
               />
             </div>
 
