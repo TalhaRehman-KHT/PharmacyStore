@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - v4-fix
+
   pull_request:
     branches:
       - v4-fix
@@ -30,7 +31,11 @@ jobs:
           EOF
 
       - name: Build Client Docker Image
-        run: docker build --secret id=env,src=Client/.env -t pharmacy-store-client ./Client
+        run: |
+          docker build \
+            --secret id=env,src=Client/.env \
+            -t pharmacy-store-client \
+            ./Client
 
       - name: Create Server .env
         run: |
@@ -45,4 +50,19 @@ jobs:
           EOF
 
       - name: Build Server Docker Image
-        run: docker build -t pharmacy-store-server ./Server
+        run: |
+          docker build \
+            -t pharmacy-store-server \
+            ./Server
+
+  deploy:
+    name: Deploy to AWS
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+
+    steps:
+      - name: Production deployment approved
+        run: echo "Production deployment approved!"
