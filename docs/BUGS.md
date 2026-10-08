@@ -10,7 +10,7 @@ Severity: Critical / High / Medium / Low. Status: open / fixed (`hash`).
 | K3 | `authService.js` `signInWithGoogle` | Google ID token decoded via `atob`, no signature check | Critical | open |
 | K4 | DB | all RLS policies `USING (true)` | Critical | open |
 | K5 | `emailService.js`, `googleConstants.js`, `api/axios.js` | hardcoded fallback ids / hosted URL | Medium | open |
-| K6 | repo | `Client/.env`, `Server/.env`, `Server/node_modules` (2244 files) tracked; no root `.gitignore` | Medium | open |
+| K6 | repo | `Client/.env`, `Server/.env`, `Server/node_modules` (2244 files) tracked; no root `.gitignore` | Medium | untracked (882d49b); values still in git history → rotate keys |
 | K7 | `userCartService.js`, `reminderService.js` | some inserts ignore `error` | Medium | open |
 | K8 | `Server/src/routes/createCheckoutSession.js` | caller identified by spoofable `X-User-Id` header | High | open |
 | K9 | `Server/src/routes/stripeWebhook.js` | idempotency = read-then-update (race on duplicate events → double stock deduction) | Medium | open |
