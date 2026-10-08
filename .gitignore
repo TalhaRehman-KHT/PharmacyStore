@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Env (names documented in docs/ENV.md)
+.env
+.env.*
+!.env.example
+
+# Build / tooling
+dist/
+dist-ssr/
+coverage/
+playwright-report/
+test-results/
+.vercel
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
