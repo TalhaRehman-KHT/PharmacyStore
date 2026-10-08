@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useContext, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { AuthContext } from "../../context/AuthContext.jsx";
 import { createPharmacy } from "../../lib/vendorPharmacyService.js";
 import { useVendorDashboard } from "../../context/VendorDashboardContext.jsx";
 import { Store, FileText, Phone, MapPin, Building2 } from "lucide-react";
@@ -10,7 +11,8 @@ const labelClass = "block text-sm font-medium text-gray-700 mb-1.5";
 
 export default function CreateStore() {
   const navigate = useNavigate();
-  const { refresh } = useVendorDashboard();
+  const { user } = useContext(AuthContext);
+  const { pharmacy, refresh } = useVendorDashboard();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({
@@ -29,7 +31,6 @@ export default function CreateStore() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
     if (!user?.id) {
       setError("Please log in again.");
       return;
@@ -73,6 +74,8 @@ export default function CreateStore() {
       setLoading(false);
     }
   };
+
+  if (pharmacy?.id) return <Navigate to="/vendor/dashboard" replace />;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-accent-green/30 to-background">

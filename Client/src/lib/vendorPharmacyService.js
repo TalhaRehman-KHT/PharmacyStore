@@ -26,8 +26,17 @@ export async function getPharmacyByVendorId(vendorId) {
     .select("*")
     .eq("vendor_id", vendorId)
     .eq("is_active", true)
+    // One store per vendor; oldest wins if duplicates already exist.
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
+  if (error) throw new Error(error.message);
+  return toPharmacy(data);
+}
+
+async function getPharmacyById(pharmacyId) {
+  const { data, error } = await supabase.from("pharmacies").select("*").eq("id", pharmacyId).maybeSingle();
   if (error) throw new Error(error.message);
   return toPharmacy(data);
 }
@@ -40,6 +49,10 @@ export async function createPharmacy({
   city,
   phone,
 }) {
+  if (await getPharmacyByVendorId(vendorId)) {
+    throw new Error("You already have a store. Edit it in Settings.");
+  }
+
   const insert = {
     vendor_id: vendorId,
     name: name.trim(),
@@ -67,7 +80,7 @@ export async function updatePharmacy(pharmacyId, { name, licenseNumber, address,
   if (address != null) updates.address = address.trim();
   if (city != null) updates.city = city.trim();
   if (phone != null) updates.phone = phone.trim() || null;
-  if (Object.keys(updates).length === 0) return getPharmacyByVendorId(null);
+  if (Object.keys(updates).length === 0) return getPharmacyById(pharmacyId);
 
   const { data, error } = await supabase
     .from("pharmacies")
