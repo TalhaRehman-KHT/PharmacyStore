@@ -30,10 +30,7 @@ jobs:
           EOF
 
       - name: Build Client Docker Image
-        run: |
-          docker build \
-            --secret id=env,src=Client/.env \
-            -t pharmacy-store-client ./Client
+        run: docker build --secret id=env,src=Client/.env -t pharmacy-store-client ./Client
 
       - name: Create Server .env
         run: |
@@ -48,6 +45,4 @@ jobs:
           EOF
 
       - name: Build Server Docker Image
-        run: |
-          docker build \
-            -t pharmacy-store-server ./Server
+        run: docker build -t pharmacy-store-server ./Server
