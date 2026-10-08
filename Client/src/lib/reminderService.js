@@ -104,6 +104,14 @@ function timeToApi({ hour, minute }) {
   return `${h}:${m}:00`;
 }
 
+async function insertTimes(reminderId, times) {
+  if (!times.length) return;
+  const { error } = await supabase
+    .from("reminder_times")
+    .insert(times.map((t) => ({ reminder_id: reminderId, schedule_time: timeToApi(t) })));
+  if (error) throw new Error(error.message);
+}
+
 /**
  * Create a new reminder with one or more times per day.
  */
@@ -129,11 +137,12 @@ export async function createReminder(userId, opts) {
   if (insertError || !reminderRow) return null;
   const reminderId = reminderRow.id;
 
-  for (const t of times) {
-    await supabase.from("reminder_times").insert({
-      reminder_id: reminderId,
-      schedule_time: timeToApi(t),
-    });
+  try {
+    await insertTimes(reminderId, times);
+  } catch (err) {
+    // Don't leave a reminder without times behind.
+    await supabase.from("reminders").delete().eq("id", reminderId);
+    throw err;
   }
 
   const { data: full } = await supabase
@@ -162,13 +171,9 @@ export async function updateReminder(id, opts) {
   }
 
   if (opts.times != null && Array.isArray(opts.times)) {
-    await supabase.from("reminder_times").delete().eq("reminder_id", id);
-    for (const t of opts.times) {
-      await supabase.from("reminder_times").insert({
-        reminder_id: id,
-        schedule_time: timeToApi(t),
-      });
-    }
+    const { error: delError } = await supabase.from("reminder_times").delete().eq("reminder_id", id);
+    if (delError) throw new Error(delError.message);
+    await insertTimes(id, opts.times);
   }
 
   const { data: full } = await supabase

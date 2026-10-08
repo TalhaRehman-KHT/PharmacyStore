@@ -1,13 +1,14 @@
 import { supabase } from "./supabase.js";
 
 async function getOrCreateCartId(userId, pharmacyId) {
-  const { data: existing } = await supabase
+  const { data: existing, error: findError } = await supabase
     .from("carts")
     .select("id")
     .eq("user_id", userId)
     .eq("pharmacy_id", pharmacyId)
     .maybeSingle();
 
+  if (findError) throw new Error(findError.message);
   if (existing?.id) return existing.id.toString();
 
   const { data: inserted, error } = await supabase
@@ -63,30 +64,47 @@ export async function getCartsForUser(userId) {
   return (data || []).map(parseCart).filter((c) => c.items.length > 0);
 }
 
+/** Throw if `quantity` exceeds the batch stock. */
+async function assertInStock(batchId, quantity) {
+  const { data, error } = await supabase.from("medicine_batches").select("quantity").eq("id", batchId).maybeSingle();
+  if (error) throw new Error(error.message);
+  const stock = data?.quantity ?? 0;
+  if (quantity > stock) {
+    throw new Error(stock > 0 ? `Only ${stock} in stock` : "Out of stock");
+  }
+}
+
+async function touchCart(cartId) {
+  const { error } = await supabase.from("carts").update({ updated_at: new Date().toISOString() }).eq("id", cartId);
+  if (error) throw new Error(error.message);
+}
+
 export async function addToCart({ userId, pharmacyId, batchId, medicineId, quantity = 1, unitPrice }) {
   const cartId = await getOrCreateCartId(userId, pharmacyId);
 
-  const { data: existing } = await supabase
+  const { data: existing, error: findError } = await supabase
     .from("cart_items")
     .select("id, quantity")
     .eq("cart_id", cartId)
     .eq("batch_id", batchId)
     .maybeSingle();
+  if (findError) throw new Error(findError.message);
 
-  if (existing) {
-    const newQty = (existing.quantity || 0) + quantity;
-    await supabase.from("cart_items").update({ quantity: newQty }).eq("id", existing.id);
-  } else {
-    await supabase.from("cart_items").insert({
-      cart_id: cartId,
-      batch_id: batchId,
-      medicine_id: medicineId,
-      quantity,
-      unit_price: unitPrice,
-    });
-  }
+  const newQty = (existing?.quantity || 0) + quantity;
+  await assertInStock(batchId, newQty);
 
-  await supabase.from("carts").update({ updated_at: new Date().toISOString() }).eq("id", cartId);
+  const { error } = existing
+    ? await supabase.from("cart_items").update({ quantity: newQty }).eq("id", existing.id)
+    : await supabase.from("cart_items").insert({
+        cart_id: cartId,
+        batch_id: batchId,
+        medicine_id: medicineId,
+        quantity,
+        unit_price: unitPrice,
+      });
+  if (error) throw new Error(error.message);
+
+  await touchCart(cartId);
 }
 
 export async function updateItemQuantity(cartItemId, quantity) {
@@ -94,24 +112,37 @@ export async function updateItemQuantity(cartItemId, quantity) {
     await removeItem(cartItemId);
     return;
   }
+  const { data: item, error: itemError } = await supabase
+    .from("cart_items")
+    .select("cart_id, batch_id")
+    .eq("id", cartItemId)
+    .single();
+  if (itemError) throw new Error(itemError.message);
+
+  await assertInStock(item.batch_id, quantity);
+
   const { error } = await supabase.from("cart_items").update({ quantity }).eq("id", cartItemId);
   if (error) throw new Error(error.message);
 
-  const { data: item } = await supabase.from("cart_items").select("cart_id").eq("id", cartItemId).single();
-  if (item?.cart_id) {
-    await supabase.from("carts").update({ updated_at: new Date().toISOString() }).eq("id", item.cart_id);
-  }
+  await touchCart(item.cart_id);
 }
 
 export async function removeItem(cartItemId) {
-  const { data: item } = await supabase.from("cart_items").select("cart_id").eq("id", cartItemId).maybeSingle();
-  await supabase.from("cart_items").delete().eq("id", cartItemId);
-  if (item?.cart_id) {
-    await supabase.from("carts").update({ updated_at: new Date().toISOString() }).eq("id", item.cart_id);
-  }
+  const { data: item, error: itemError } = await supabase
+    .from("cart_items")
+    .select("cart_id, batch_id")
+    .eq("id", cartItemId)
+    .maybeSingle();
+  if (itemError) throw new Error(itemError.message);
+
+  const { error } = await supabase.from("cart_items").delete().eq("id", cartItemId);
+  if (error) throw new Error(error.message);
+
+  if (item?.cart_id) await touchCart(item.cart_id);
 }
 
 export async function clearCart(cartId) {
-  await supabase.from("cart_items").delete().eq("cart_id", cartId);
-  await supabase.from("carts").update({ updated_at: new Date().toISOString() }).eq("id", cartId);
+  const { error } = await supabase.from("cart_items").delete().eq("cart_id", cartId);
+  if (error) throw new Error(error.message);
+  await touchCart(cartId);
 }
