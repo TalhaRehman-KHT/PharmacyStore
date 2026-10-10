@@ -2,16 +2,25 @@ name: Pharmacy Store CI/CD
 
 on:
   push:
-    branches:
-      - v4-fix
-
+    branches: [v4-fix]
   pull_request:
-    branches:
-      - v4-fix
+    branches: [v4-fix]
+
+concurrency:
+  group: pharmacy-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-southeast-2
+  ECR_REGISTRY: 833167447372.dkr.ecr.ap-southeast-2.amazonaws.com
+  ECR_REPO: pharmacystore
+  ECS_CLUSTER: pharmacy-store-cluster
+  CLIENT_SERVICE: pharmacy-store-client-service
+  SERVER_SERVICE: pharmacy-store-server-service-u9mf7m09
 
 jobs:
   build:
-    name: Build Docker Images
+    name: Build and Push Docker Images
     runs-on: ubuntu-latest
 
     steps:
@@ -30,13 +39,6 @@ jobs:
           VITE_EMAILJS_TEMPLATE_ID=${{ secrets.VITE_EMAILJS_TEMPLATE_ID }}
           EOF
 
-      - name: Build Client Docker Image
-        run: |
-          docker build \
-            --secret id=env,src=Client/.env \
-            -t pharmacy-store-client \
-            ./Client
-
       - name: Create Server .env
         run: |
           cat <<EOF > Server/.env
@@ -49,20 +51,78 @@ jobs:
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           EOF
 
+      - name: Build Client Docker Image
+        run: |
+          docker build \
+            --secret id=env,src=Client/.env \
+            -t pharmacy-store-client \
+            ./Client
+
       - name: Build Server Docker Image
         run: |
           docker build \
             -t pharmacy-store-server \
             ./Server
 
+      # ---- Yahan se neeche sirf push event pe (PR pe nahi) ----
+      - name: Configure AWS credentials
+        if: github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name == 'push'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag and push images to ECR
+        if: github.event_name == 'push'
+        run: |
+          # ECS yehi tags use karta hai: client aur server
+          docker tag pharmacy-store-client $ECR_REGISTRY/$ECR_REPO:client
+          docker tag pharmacy-store-server $ECR_REGISTRY/$ECR_REPO:server
+          docker push $ECR_REGISTRY/$ECR_REPO:client
+          docker push $ECR_REGISTRY/$ECR_REPO:server
+
+          # Rollback ke liye commit SHA wale tags bhi
+          docker tag pharmacy-store-client $ECR_REGISTRY/$ECR_REPO:client-${{ github.sha }}
+          docker tag pharmacy-store-server $ECR_REGISTRY/$ECR_REPO:server-${{ github.sha }}
+          docker push $ECR_REGISTRY/$ECR_REPO:client-${{ github.sha }}
+          docker push $ECR_REGISTRY/$ECR_REPO:server-${{ github.sha }}
+
   deploy:
-    name: Deploy to AWS
+    name: Deploy to AWS ECS
     needs: build
+    if: github.event_name == 'push'      # PR pe approval nahi maangega
     runs-on: ubuntu-latest
 
     environment:
-      name: production
+      name: production                   # yahan tumhari manual approval aayegi
 
     steps:
-      - name: Production deployment approved
-        run: echo "Production deployment approved!"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Tell ECS to pull the new images
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $CLIENT_SERVICE \
+            --force-new-deployment > /dev/null
+
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $SERVER_SERVICE \
+            --force-new-deployment > /dev/null
+
+      - name: Wait until services are stable
+        run: |
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $CLIENT_SERVICE $SERVER_SERVICE
