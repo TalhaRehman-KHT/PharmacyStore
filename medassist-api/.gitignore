@@ -1,0 +1,121 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+data/raw/*
+!data/raw/.gitkeep
+data/chunks/*
+!data/chunks/.gitkeep
+eval/cache/
+
+# ===============================
+# Environment variables & secrets
+# ===============================
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets/
+credentials/
+service-account*.json
+
+# ===============================
+# Python & FastAPI
+# ===============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging & build
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+pip-wheel-metadata/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Type checking & linting
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
+# ===============================
+# Documents & private files
+# ===============================
+*.doc
+*.docx
+*.pdf
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.odt
+*.ods
+*.zip
+*.rar
+*.7z
+
+# Local databases & data
+*.db
+*.sqlite
+*.sqlite3
+data/private/
+uploads/
+backups/
+dumps/
+
+# ===============================
+# Logs & temporary files
+# ===============================
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# ===============================
+# IDE & operating system
+# ===============================
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===============================
+# Local tools & caches
+# ===============================
+.cache/
+.pyre/
+.dmypy.json
+ipython_config.py

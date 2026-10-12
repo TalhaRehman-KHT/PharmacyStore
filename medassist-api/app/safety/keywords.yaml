@@ -1,0 +1,5 @@
+# Safety keyword lists used by the guard node. Filled in a later step.
+emergency: []
+dosing: []
+prescription_only: []
+pregnancy_or_child: []

@@ -1,0 +1,21 @@
+-- 006_hybrid_search.sql
+-- YOU write the body of this function in Step 6 (it is one of your "own" files).
+-- Signature agreed in docs/design.md. Leave this file as is until then.
+--
+-- create or replace function public.hybrid_search(
+--   query_embedding extensions.vector(768),
+--   query_text      text,
+--   match_count     int  default 20,
+--   drug_filter     text default null
+-- ) returns table (chunk_id uuid, content text, drug_name text, section text,
+--                  vector_rank int, keyword_rank int, rrf_score float)
+-- language sql stable
+-- set search_path = public, extensions
+-- as $$
+--   -- 1. vector CTE: top 20 ordered by embedding <=> query_embedding, row_number() as rank
+--   -- 2. keyword CTE: top 20 where fts @@ websearch_to_tsquery('english', query_text),
+--   --    ordered by ts_rank desc, row_number() as rank
+--   -- 3. both CTEs: and (drug_filter is null or drug_name = drug_filter)
+--   -- 4. full outer join on id; rrf = coalesce(1.0/(60+v.rank),0) + coalesce(1.0/(60+k.rank),0)
+--   -- 5. order by rrf desc limit match_count
+-- $$;

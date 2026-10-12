@@ -12,6 +12,7 @@ import {
   Bell,
   Menu,
   X,
+  MessageCircle,
 } from "lucide-react";
 import { UserNotificationsContext } from "../context/UserNotificationsContext.jsx";
 
@@ -22,6 +23,7 @@ const navItems = [
   { path: "/user/notifications", label: "Notifications", icon: Bell },
   { path: "/user/orders", label: "Orders", icon: Package },
   { path: "/user/health", label: "Health", icon: HeartPulse },
+  { path: "/user/assistant", label: "MedAssist", icon: MessageCircle },
   { path: "/user/profile", label: "Profile", icon: User },
 ];
 

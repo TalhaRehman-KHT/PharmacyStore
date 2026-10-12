@@ -1,0 +1,51 @@
+"""Application settings loaded from environment variables and .env."""
+
+# settings from env
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import SecretStr, ValidationError
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """All runtime configuration. Field names map to UPPER_CASE env variables."""
+
+    # Empty values (e.g. `OPENFDA_API_KEY=`) count as unset, so defaults and "missing" checks apply.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True, extra="ignore"
+    )
+
+    app_env: Literal["dev", "prod"] = "dev"
+    app_version: str = "0.1.0"
+
+    supabase_url: str
+    supabase_service_key: SecretStr
+    supabase_jwt_secret: SecretStr | None = None
+
+    groq_api_key: SecretStr
+    gemini_api_key: SecretStr
+    openfda_api_key: SecretStr | None = None
+    langsmith_api_key: SecretStr | None = None
+
+    groq_fast_model: str = "llama-3.1-8b-instant"
+    groq_answer_model: str = "llama-3.3-70b-versatile"
+    gemini_embed_model: str = "text-embedding-004"
+    gemini_fallback_model: str = "gemini-2.0-flash"
+    embed_dim: int = 768
+
+    cors_origins: list[str] = ["http://localhost:5173"]
+    rate_limit: str = "20/hour"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Load settings once. Raises a readable error naming missing or invalid variables."""
+    try:
+        return Settings()
+    except ValidationError as exc:
+        names = sorted({str(err["loc"][0]).upper() for err in exc.errors() if err["loc"]})
+        raise RuntimeError(
+            "Missing or invalid settings: " + ", ".join(names) + ". Check medassist-api/.env "
+            "(see .env.example)."
+        ) from None

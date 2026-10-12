@@ -4,6 +4,8 @@ import { AuthProvider } from "./context/AuthContext.jsx";
 import { GOOGLE_WEB_CLIENT_ID } from "./lib/googleConstants.js";
 import { VendorDashboardProvider } from "./context/VendorDashboardContext.jsx";
 import { UserNotificationsProvider } from "./context/UserNotificationsContext.jsx";
+import { MedAssistProvider } from "./context/MedAssistContext.jsx";
+import MedAssistWidget from "./features/medassist/components/MedAssistWidget.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import RedirectIfAuthenticated from "./components/RedirectIfAuthenticated.jsx";
 import { Toaster } from "react-hot-toast";
@@ -24,6 +26,7 @@ import VendorSettings from "./pages/Dashboard/VendorSettings.jsx";
 import VendorOrderDetail from "./pages/Dashboard/VendorOrderDetail.jsx";
 import AdminOrders from "./pages/Dashboard/AdminOrders.jsx";
 import CreateStore from "./pages/Dashboard/CreateStore.jsx";
+import VendorEscalations from "./pages/Dashboard/VendorEscalations.jsx";
 import UserDashboard from "./pages/Dashboard/UserDashboard.jsx";
 import UserShop from "./pages/User/UserShop.jsx";
 import UserCart from "./pages/User/UserCart.jsx";
@@ -38,6 +41,7 @@ import UserHealthRemindersAddEdit from "./pages/User/UserHealthRemindersAddEdit.
 import UserProfile from "./pages/User/UserProfile.jsx";
 import UserOrders from "./pages/User/UserOrders.jsx";
 import UserOrderDetail from "./pages/User/UserOrderDetail.jsx";
+import UserAssistant from "./pages/User/UserAssistant.jsx";
 
 function App() {
   return (
@@ -46,6 +50,7 @@ function App() {
       <AuthProvider>
         <VendorDashboardProvider>
           <UserNotificationsProvider>
+          <MedAssistProvider>
           <Toaster
             position="top-right"
             toastOptions={{
@@ -143,6 +148,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["vendor", "admin"]}>
                 <VendorExpiringSoon />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vendor/escalations"
+            element={
+              <ProtectedRoute allowedRoles={["vendor", "admin"]}>
+                <VendorEscalations />
               </ProtectedRoute>
             }
           />
@@ -290,8 +303,18 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/user/assistant"
+            element={
+              <ProtectedRoute allowedRoles={["user", "doctor"]}>
+                <UserAssistant />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+          <MedAssistWidget />
+          </MedAssistProvider>
           </UserNotificationsProvider>
         </VendorDashboardProvider>
       </AuthProvider>

@@ -3,6 +3,7 @@ import UserLayout from "../../components/UserLayout.jsx";
 import { getShopMedicines } from "../../lib/userShopService.js";
 import { addToCart } from "../../lib/userCartService.js";
 import { AuthContext } from "../../context/AuthContext.jsx";
+import { useMedAssist } from "../../context/MedAssistContext.jsx";
 import {
   Search,
   X,
@@ -43,6 +44,13 @@ export default function UserShop() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // MedAssist suggestion chips mention the medicine whose detail sheet is open.
+  const { setProductName } = useMedAssist();
+  useEffect(() => {
+    setProductName(detailMedicine?.name ?? null);
+    return () => setProductName(null);
+  }, [detailMedicine, setProductName]);
 
   const categories = useMemo(() => {
     const cats = [...new Set(medicines.map((m) => m.category).filter(Boolean))].sort();
