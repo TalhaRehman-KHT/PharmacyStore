@@ -15,40 +15,15 @@ import {
   X,
   Stethoscope,
 } from "lucide-react";
-import { useEscalations } from "../features/medassist/hooks/useEscalations.js";
-
-const ESCALATIONS_PATH = "/vendor/escalations";
 
 const navItems = [
   { path: "/vendor/dashboard", label: "Main Dashboard", icon: LayoutDashboard },
   { path: "/vendor/medicine", label: "Medicine", icon: Pill },
   { path: "/vendor/orders", label: "Orders", icon: ShoppingCart },
-  { path: ESCALATIONS_PATH, label: "Escalations", icon: Stethoscope },
+  { path: "/vendor/escalations", label: "Escalations", icon: Stethoscope },
   { path: "/vendor/reports", label: "Reports", icon: BarChart3 },
   { path: "/vendor/settings", label: "Settings", icon: Settings },
 ];
-
-/** Admins don't own a store: payout review plus the MedAssist escalation queue. */
-const adminNavItems = [
-  { path: "/vendor/admin-orders", label: "Vendor payouts", icon: ShieldCheck },
-  { path: ESCALATIONS_PATH, label: "Escalations", icon: Stethoscope },
-];
-
-function NavLabel({ label, badge }) {
-  return (
-    <>
-      <span className="flex-1 min-w-0 truncate">{label}</span>
-      {badge > 0 && (
-        <span
-          className="min-w-6 h-6 px-2 rounded-full bg-primary-orange text-white text-[12px] font-bold flex items-center justify-center"
-          aria-label={`${badge} pending`}
-        >
-          {badge > 99 ? "99+" : badge}
-        </span>
-      )}
-    </>
-  );
-}
 
 export default function VendorLayout({ children }) {
   const { user, logout } = useContext(AuthContext);
@@ -56,13 +31,9 @@ export default function VendorLayout({ children }) {
   const location = useLocation();
   const isAdmin = user?.role === "admin";
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  // Pending MedAssist questions for the sidebar badge.
-  const pendingCount = useEscalations("pending").escalations.length;
 
   const pageTitle = useMemo(() => {
-    if (isAdmin) {
-      return location.pathname.startsWith(ESCALATIONS_PATH) ? "Escalations" : "Vendor payouts";
-    }
+    if (isAdmin) return "Vendor payouts";
     if (location.pathname === "/vendor/create-store") return "Create Store";
     const match = navItems.find((n) => n.path === location.pathname);
     if (match) return match.label;
@@ -76,25 +47,6 @@ export default function VendorLayout({ children }) {
       ? "/vendor/dashboard"
       : "/vendor/create-store";
 
-  const adminNav = adminNavItems.map(({ path, label, icon: Icon }) => {
-    const isActive = location.pathname.startsWith(path);
-    return (
-      <Link
-        key={path}
-        to={path}
-        onClick={() => setMobileSidebarOpen(false)}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-          isActive
-            ? "bg-primary-green text-white shadow-lg shadow-primary-green/25"
-            : "text-gray-400 hover:bg-white/10 hover:text-white"
-        }`}
-      >
-        <Icon className="w-5 h-5 shrink-0" />
-        <NavLabel label={label} badge={path === ESCALATIONS_PATH ? pendingCount : 0} />
-      </Link>
-    );
-  });
-
   const sidebarNav = (
     <>
       <div className="p-4 border-b border-white/10">
@@ -104,7 +56,18 @@ export default function VendorLayout({ children }) {
       </div>
       <nav className="flex-1 py-4 px-3 space-y-1">
         {isAdmin ? (
-          adminNav
+          <Link
+            to="/vendor/admin-orders"
+            onClick={() => setMobileSidebarOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              location.pathname.startsWith("/vendor/admin-orders")
+                ? "bg-primary-green text-white shadow-lg shadow-primary-green/25"
+                : "text-gray-400 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <ShieldCheck className="w-5 h-5 shrink-0" />
+            Vendor payouts
+          </Link>
         ) : (
           <>
             {!pharmacy?.id && (
@@ -135,7 +98,7 @@ export default function VendorLayout({ children }) {
                   }`}
                 >
                   <Icon className="w-5 h-5 shrink-0" />
-                  <NavLabel label={label} badge={path === ESCALATIONS_PATH ? pendingCount : 0} />
+                  {label}
                 </Link>
               );
             })}
@@ -194,7 +157,18 @@ export default function VendorLayout({ children }) {
         */}
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-auto">
           {isAdmin ? (
-            adminNav
+            <Link
+              to="/vendor/admin-orders"
+              onClick={() => setMobileSidebarOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                location.pathname.startsWith("/vendor/admin-orders")
+                  ? "bg-primary-green text-white shadow-lg shadow-primary-green/25"
+                  : "text-gray-400 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <ShieldCheck className="w-5 h-5 shrink-0" />
+              Vendor payouts
+            </Link>
           ) : (
             <>
               {!pharmacy?.id && (
@@ -225,7 +199,7 @@ export default function VendorLayout({ children }) {
                     }`}
                   >
                     <Icon className="w-5 h-5 shrink-0" />
-                    <NavLabel label={label} badge={path === ESCALATIONS_PATH ? pendingCount : 0} />
+                    {label}
                   </Link>
                 );
               })}

@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { AuthContext } from "../../../context/AuthContext.jsx";
-import { useMedAssist } from "../../../context/MedAssistContext.jsx";
+import { useMedAssist } from "../hooks/useMedAssist.js";
 import ChatLauncher from "./ChatLauncher.jsx";
 import ChatPanel from "./ChatPanel.jsx";
 

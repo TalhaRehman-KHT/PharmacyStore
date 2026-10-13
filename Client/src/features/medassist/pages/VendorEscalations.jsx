@@ -1,12 +1,12 @@
 import React, { useCallback, useState } from "react";
 import { Inbox, RefreshCw, X } from "lucide-react";
-import VendorLayout from "../../components/VendorLayout.jsx";
-import VendorRouteGuard from "../../components/VendorRouteGuard.jsx";
-import { useEscalations } from "../../features/medassist/hooks/useEscalations.js";
-import { useEscalationInsights } from "../../features/medassist/hooks/useEscalationInsights.js";
-import EscalationList from "../../features/medassist/components/EscalationList.jsx";
-import EscalationDrawer from "../../features/medassist/components/EscalationDrawer.jsx";
-import EscalationInsightsCard from "../../features/medassist/components/EscalationInsightsCard.jsx";
+import VendorLayout from "../../../components/VendorLayout.jsx";
+import VendorRouteGuard from "../../../components/VendorRouteGuard.jsx";
+import { useEscalations } from "../hooks/useEscalations.js";
+import { useEscalationInsights } from "../hooks/useEscalationInsights.js";
+import EscalationList from "../components/EscalationList.jsx";
+import EscalationDrawer from "../components/EscalationDrawer.jsx";
+import EscalationInsightsCard from "../components/EscalationInsightsCard.jsx";
 
 const TABS = [
   { key: "pending", label: "Pending" },

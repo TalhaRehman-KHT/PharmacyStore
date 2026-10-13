@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { MessagesSquare, X } from "lucide-react";
-import UserLayout from "../../components/UserLayout.jsx";
-import { useMedAssist } from "../../context/MedAssistContext.jsx";
-import { useChatSessions } from "../../features/medassist/hooks/useChatSessions.js";
-import ChatConversation from "../../features/medassist/components/ChatConversation.jsx";
-import SessionSidebar from "../../features/medassist/components/SessionSidebar.jsx";
-import ConfirmDialog from "../../features/medassist/components/ConfirmDialog.jsx";
+import UserLayout from "../../../components/UserLayout.jsx";
+import { useMedAssist } from "../hooks/useMedAssist.js";
+import { useChatSessions } from "../hooks/useChatSessions.js";
+import ChatConversation from "../components/ChatConversation.jsx";
+import SessionSidebar from "../components/SessionSidebar.jsx";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 /**
  * Full-page MedAssist. Shares the chat with the floating widget (MedAssistContext),

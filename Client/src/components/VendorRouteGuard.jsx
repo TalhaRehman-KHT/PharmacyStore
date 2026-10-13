@@ -3,12 +3,9 @@ import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { useVendorDashboard } from "../context/VendorDashboardContext.jsx";
 import { AuthContext } from "../context/AuthContext.jsx";
 
-/** Pages an admin may open; everything else under /vendor sends them to payouts. */
-const ADMIN_PATHS = ["/vendor/admin-orders", "/vendor/escalations"];
-
 /**
  * Redirects vendor to /vendor/create-store if they have no pharmacy.
- * Admins skip this (they use Payout review and the escalation queue without owning a store).
+ * Admins skip this (they use Payout review without owning a store).
  */
 export default function VendorRouteGuard({ children }) {
   const { user } = useContext(AuthContext);
@@ -27,7 +24,7 @@ export default function VendorRouteGuard({ children }) {
   }, [isAdmin, pharmacy?.id, loading, navigate, location.pathname]);
 
   if (isAdmin) {
-    if (ADMIN_PATHS.some((p) => location.pathname.startsWith(p))) {
+    if (location.pathname.startsWith("/vendor/admin-orders")) {
       return children;
     }
     return <Navigate to="/vendor/admin-orders" replace />;

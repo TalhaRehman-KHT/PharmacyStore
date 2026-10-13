@@ -4,7 +4,7 @@ import { AuthProvider } from "./context/AuthContext.jsx";
 import { GOOGLE_WEB_CLIENT_ID } from "./lib/googleConstants.js";
 import { VendorDashboardProvider } from "./context/VendorDashboardContext.jsx";
 import { UserNotificationsProvider } from "./context/UserNotificationsContext.jsx";
-import { MedAssistProvider } from "./context/MedAssistContext.jsx";
+import { MedAssistProvider } from "./features/medassist/context/MedAssistContext.jsx";
 import MedAssistWidget from "./features/medassist/components/MedAssistWidget.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import RedirectIfAuthenticated from "./components/RedirectIfAuthenticated.jsx";
@@ -26,7 +26,6 @@ import VendorSettings from "./pages/Dashboard/VendorSettings.jsx";
 import VendorOrderDetail from "./pages/Dashboard/VendorOrderDetail.jsx";
 import AdminOrders from "./pages/Dashboard/AdminOrders.jsx";
 import CreateStore from "./pages/Dashboard/CreateStore.jsx";
-import VendorEscalations from "./pages/Dashboard/VendorEscalations.jsx";
 import UserDashboard from "./pages/Dashboard/UserDashboard.jsx";
 import UserShop from "./pages/User/UserShop.jsx";
 import UserCart from "./pages/User/UserCart.jsx";
@@ -41,7 +40,8 @@ import UserHealthRemindersAddEdit from "./pages/User/UserHealthRemindersAddEdit.
 import UserProfile from "./pages/User/UserProfile.jsx";
 import UserOrders from "./pages/User/UserOrders.jsx";
 import UserOrderDetail from "./pages/User/UserOrderDetail.jsx";
-import UserAssistant from "./pages/User/UserAssistant.jsx";
+import UserAssistant from "./features/medassist/pages/UserAssistant.jsx";
+import VendorEscalations from "./features/medassist/pages/VendorEscalations.jsx";
 
 function App() {
   return (
@@ -154,7 +154,7 @@ function App() {
           <Route
             path="/vendor/escalations"
             element={
-              <ProtectedRoute allowedRoles={["vendor", "admin"]}>
+              <ProtectedRoute allowedRoles={["vendor"]}>
                 <VendorEscalations />
               </ProtectedRoute>
             }

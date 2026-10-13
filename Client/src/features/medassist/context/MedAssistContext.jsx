@@ -1,13 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { AuthContext } from "./AuthContext.jsx";
-import { useMedAssistChat } from "../features/medassist/hooks/useMedAssistChat.js";
-
-export const MedAssistContext = createContext(null);
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AuthContext } from "../../../context/AuthContext.jsx";
+import { useMedAssistChat } from "../hooks/useMedAssistChat.js";
+import { MedAssistContext } from "./medAssistContextObject.js";
 
 /**
  * App-level MedAssist state, so the chat survives page navigation
  * (each page renders its own layout).
- * - productName: set by product pages so suggestion chips mention the product.
+ * - productName: lets suggestion chips mention a product (no shop page sets it; chips fall back to generic).
  * - rateLimitedUntil: epoch ms; input is disabled until then after a 429.
  */
 export function MedAssistProvider({ children }) {
@@ -49,10 +48,4 @@ export function MedAssistProvider({ children }) {
   );
 
   return <MedAssistContext.Provider value={value}>{children}</MedAssistContext.Provider>;
-}
-
-export function useMedAssist() {
-  const ctx = useContext(MedAssistContext);
-  if (!ctx) throw new Error("useMedAssist must be used inside MedAssistProvider");
-  return ctx;
 }
