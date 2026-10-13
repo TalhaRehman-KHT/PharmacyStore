@@ -8,7 +8,7 @@ from uuid import UUID
 
 from supabase import AsyncClient
 
-from app.repositories import escalations, feedback, messages, sessions
+from app.repositories import escalations, feedback, messages, pharmacies, sessions
 
 
 class Repos:
@@ -61,7 +61,4 @@ class Repos:
 
     # pharmacies (read-only shop table)
     async def pharmacy_exists(self, pharmacy_id: UUID) -> bool:
-        res = await (
-            self.db.table("pharmacies").select("id").eq("id", str(pharmacy_id)).limit(1).execute()
-        )
-        return bool(res.data)
+        return await pharmacies.pharmacy_exists(self.db, pharmacy_id)

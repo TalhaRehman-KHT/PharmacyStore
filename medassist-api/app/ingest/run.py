@@ -87,17 +87,12 @@ async def _embed_load(args: argparse.Namespace) -> None:
             "Run the same command again after the reset; the cache keeps all progress."
         )
     if db is not None:
-        all_rows = await db.table("drug_chunks").select("id", count="exact", head=True).execute()
-        with_vec = (
-            await db.table("drug_chunks")
-            .select("id", count="exact", head=True)
-            .not_.is_("embedding", "null")
-            .execute()
-        )
-        docs_db = await db.table("drug_documents").select("id", count="exact", head=True).execute()
+        from app.repositories.knowledge import kb_counts
+
+        c = await kb_counts(db)
         print(
-            f"DB now: drug_documents {docs_db.count} | drug_chunks {all_rows.count} | "
-            f"with embedding {with_vec.count}"
+            f"DB now: drug_documents {c.documents} | drug_chunks {c.chunks} | "
+            f"with embedding {c.with_embedding}"
         )
 
 

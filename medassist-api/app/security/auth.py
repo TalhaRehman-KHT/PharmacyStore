@@ -15,6 +15,7 @@ from supabase import AsyncClient
 
 from app.config import get_settings
 from app.db.client import get_db
+from app.repositories.users import get_user
 
 logger = logging.getLogger(__name__)
 
@@ -80,18 +81,6 @@ async def _decode(token: str) -> dict:
     )
 
 
-async def fetch_user(db: AsyncClient, user_id: UUID) -> dict | None:
-    """The public.users row (id, name, role, is_active), or None if there is none."""
-    res = await (
-        db.table("users")
-        .select("id, name, role, is_active")
-        .eq("id", str(user_id))
-        .maybe_single()
-        .execute()
-    )
-    return res.data if res and res.data else None
-
-
 async def _user_from_header(db: AsyncClient, raw_id: str | None) -> CurrentUser:
     """app_user_id mode: the header must name an existing, active user."""
     if not raw_id:
@@ -100,7 +89,7 @@ async def _user_from_header(db: AsyncClient, raw_id: str | None) -> CurrentUser:
         user_id = UUID(raw_id)
     except ValueError:
         raise _unauthorized("Invalid user", USER_ID_HEADER) from None
-    row = await fetch_user(db, user_id)
+    row = await get_user(db, user_id)
     if row is None or row.get("is_active") is False:
         raise _unauthorized("Invalid user", USER_ID_HEADER)
     # The role ALWAYS comes from the database, never from the request.
@@ -143,7 +132,7 @@ async def fetch_user_role(db: AsyncClient, user_id: UUID) -> str | None:
 
     None if there is no row or the account is deactivated (is_active = false).
     """
-    row = await fetch_user(db, user_id)
+    row = await get_user(db, user_id)
     if row is None or row.get("is_active") is False:
         return None
     return row.get("role")

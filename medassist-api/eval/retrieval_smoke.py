@@ -193,6 +193,7 @@ async def main() -> None:
     from app.db.client import create_db
     from app.rag.embed import embedder_from_settings
     from app.rag.rerank import Reranker
+    from app.repositories.knowledge import kb_counts
 
     settings = get_settings()
     questions = read_questions()
@@ -204,16 +205,10 @@ async def main() -> None:
         )
     print(f"query vectors: {len(vectors)} | Gemini API calls: {embedder.api_calls}")
 
-    docs = await db.table("drug_documents").select("id", count="exact", head=True).execute()
-    chunks = (
-        await db.table("drug_chunks")
-        .select("id", count="exact", head=True)
-        .not_.is_("embedding", "null")
-        .execute()
-    )
+    counts = await kb_counts(db)
     note = (
-        f"Database at run time: {docs.count} drug documents, {chunks.count} chunks with an "
-        "embedding (the full load is 64 documents / 3866 chunks)."
+        f"Database at run time: {counts.documents} drug documents, {counts.with_embedding} "
+        "chunks with an embedding (the full load is 64 documents / 3866 chunks)."
     )
 
     reranker = Reranker()

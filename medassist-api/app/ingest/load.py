@@ -15,9 +15,9 @@ from pathlib import Path
 
 from app.paths import DATA_DIR
 from app.rag.embed import DailyQuotaExceeded, Embedder
+from app.repositories.knowledge import replace_chunks, upsert_document
 
 CHUNKS_FILE = DATA_DIR / "chunks" / "chunks.jsonl"
-INSERT_BATCH = 100  # rows per insert request (each row carries a 768-float vector)
 DOC_COLUMNS = ("label_id", "generic_name", "brand_names", "source_url", "effective_date")
 
 
@@ -78,9 +78,7 @@ async def load(db, embedder: Embedder, docs: dict[str, list[dict]], *, dry_run: 
         return report
     for chunks in ready:
         doc = {k: chunks[0]["document"].get(k) for k in DOC_COLUMNS}
-        res = await db.table("drug_documents").upsert(doc, on_conflict="label_id").execute()
-        doc_id = res.data[0]["id"]
-        await db.table("drug_chunks").delete().eq("document_id", doc_id).execute()
+        doc_id = await upsert_document(db, doc)
         good = [
             {
                 "document_id": doc_id,
@@ -94,8 +92,7 @@ async def load(db, embedder: Embedder, docs: dict[str, list[dict]], *, dry_run: 
             for c in chunks
             if len(c["embedding"]) == embedder.dim
         ]
-        for start in range(0, len(good), INSERT_BATCH):
-            await db.table("drug_chunks").insert(good[start : start + INSERT_BATCH]).execute()
+        await replace_chunks(db, doc_id, good)
         report.inserted += len(good)
         report.documents_loaded += 1
     return report

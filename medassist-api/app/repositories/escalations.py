@@ -9,6 +9,7 @@ from supabase import AsyncClient
 from app.config import get_settings
 from app.errors import Conflict, NotFound
 from app.repositories.mappers import escalation_out
+from app.repositories.pharmacies import vendor_pharmacy_ids
 from app.schemas.common import EscalationReason, EscalationStatus
 from app.schemas.escalation import EscalationOut, InsightsOut
 
@@ -63,8 +64,8 @@ async def load_scope(db: AsyncClient, user_id: UUID, role: str | None) -> Escala
     """Build the caller's scope once per request (one query for vendors, none for admins)."""
     if role in get_settings().staff_all_access_roles:
         return EscalationScope(all_access=True)
-    res = await db.table("pharmacies").select("id").eq("vendor_id", str(user_id)).execute()
-    return EscalationScope(all_access=False, pharmacy_ids=tuple(r["id"] for r in res.data))
+    ids = await vendor_pharmacy_ids(db, user_id)
+    return EscalationScope(all_access=False, pharmacy_ids=ids)
 
 
 def _scoped(query, scope: EscalationScope):

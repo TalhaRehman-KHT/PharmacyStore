@@ -15,8 +15,7 @@ from supabase import AsyncClient
 
 from app.ingest.names import clean_generic, clean_label, normalize_generic, us_name_map
 from app.paths import DATA_DIR
-
-PAGE_SIZE = 1000  # PostgREST returns at most 1000 rows per request
+from app.repositories.medicines import fetch_medicines
 
 
 @dataclass
@@ -84,24 +83,6 @@ def build(rows: list[dict], extras: list[str] | None = None) -> DrugListResult:
     result.synonyms = sorted(synonyms.values())
     result.drugs = sorted(set(result.counts) | set(result.extras))
     return result
-
-
-async def fetch_medicines(db: AsyncClient) -> list[dict]:
-    """All medicines rows (id, name, generic_name), paged. Read-only."""
-    rows: list[dict] = []
-    start = 0
-    while True:
-        res = await (
-            db.table("medicines")
-            .select("id,name,generic_name")
-            .order("id")
-            .range(start, start + PAGE_SIZE - 1)
-            .execute()
-        )
-        rows.extend(res.data)
-        if len(res.data) < PAGE_SIZE:
-            return rows
-        start += PAGE_SIZE
 
 
 def render_report(r: DrugListResult) -> str:
