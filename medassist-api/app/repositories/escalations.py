@@ -47,15 +47,16 @@ async def create_escalation(
 class EscalationScope:
     """Which escalations a staff user may see and answer.
 
-    all_access (admin, doctor): every row, including general questions (pharmacy_id NULL).
-    Otherwise (vendor): only rows whose pharmacy_id is one of their pharmacies.
+    all_access (admin, doctor): every row.
+    Otherwise (vendor): rows of their own pharmacies plus general questions (pharmacy_id NULL),
+    so a general question can be answered even when there is no admin (R13 BUG-R1).
     """
 
     all_access: bool
     pharmacy_ids: tuple[str, ...] = ()
 
     def allows(self, pharmacy_id: str | None) -> bool:
-        return self.all_access or (pharmacy_id is not None and pharmacy_id in self.pharmacy_ids)
+        return self.all_access or pharmacy_id is None or pharmacy_id in self.pharmacy_ids
 
 
 async def load_scope(db: AsyncClient, user_id: UUID, role: str | None) -> EscalationScope:
@@ -67,13 +68,13 @@ async def load_scope(db: AsyncClient, user_id: UUID, role: str | None) -> Escala
 
 
 def _scoped(query, scope: EscalationScope):
-    """Add the vendor filter. `in_` never matches NULL, so general questions stay hidden."""
-    return query if scope.all_access else query.in_("pharmacy_id", list(scope.pharmacy_ids))
-
-
-def _sees_nothing(scope: EscalationScope) -> bool:
-    """A vendor without a pharmacy: skip the queries, the answer is always empty."""
-    return not scope.all_access and not scope.pharmacy_ids
+    """Add the vendor filter: own pharmacies OR no pharmacy (`in_` alone never matches NULL)."""
+    if scope.all_access:
+        return query
+    parts = ["pharmacy_id.is.null"]
+    if scope.pharmacy_ids:
+        parts.append(f"pharmacy_id.in.({','.join(scope.pharmacy_ids)})")
+    return query.or_(",".join(parts))
 
 
 async def list_escalations(
@@ -83,8 +84,6 @@ async def list_escalations(
 
     Three queries whatever the queue size (escalations, customer names, citations).
     """
-    if _sees_nothing(scope):
-        return []
     query = (
         db.table("escalations")
         .select("id, message_id, user_id, question, reason, status, reply, answered_at, created_at")
@@ -147,11 +146,9 @@ async def get_insights(
 ) -> InsightsOut:
     """Pending escalations and unhelpful answers (last 7 days) inside the caller's scope.
 
-    Feedback has no pharmacy, so for a vendor "unhelpful" counts only answers that were
-    escalated to one of their pharmacies. Admin and doctor count every -1 rating.
+    Feedback has no pharmacy, so for a vendor "unhelpful" counts only escalated answers in
+    their scope (own pharmacies + general questions). Admin and doctor count every -1 rating.
     """
-    if _sees_nothing(scope):
-        return InsightsOut(unhelpful_last_7_days=0, pending_count=0)
     since = ((now or datetime.now(UTC)) - timedelta(days=7)).isoformat()
 
     # 1. Pending escalations in scope.

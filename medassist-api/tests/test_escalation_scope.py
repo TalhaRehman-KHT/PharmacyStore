@@ -1,4 +1,5 @@
-"""R10 escalation scoping through the app: admin/doctor see all, a vendor only their pharmacies."""
+"""Escalation scoping through the app: admin/doctor see all; a vendor sees their own pharmacies
+plus general questions (pharmacy_id NULL, R13 BUG-R1), never another vendor's pharmacy."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -50,9 +51,9 @@ def questions(client, headers, status="pending"):
     return sorted(e["question"] for e in res.json())
 
 
-def test_vendor_lists_only_own_pharmacy(client, world):
-    assert questions(client, world["a"]) == ["A question"]
-    assert questions(client, world["b"]) == ["B question"]
+def test_vendor_lists_own_pharmacy_and_general(client, world):
+    assert questions(client, world["a"]) == ["A question", "General question"]
+    assert questions(client, world["b"]) == ["B question", "General question"]
 
 
 def test_vendor_cannot_answer_other_vendors_escalation(client, db, world):
@@ -72,23 +73,27 @@ def test_vendor_can_answer_own_escalation(client, world):
     assert questions(client, world["b"], "answered") == []
 
 
-def test_general_question_is_hidden_from_vendors(client, world):
+def test_any_vendor_can_answer_a_general_question_once(client, world):
     res = client.post(
         f"/escalations/{world['esc_general']['id']}/reply", json=REPLY, headers=world["a"]
     )
+    assert res.status_code == 204
+    assert questions(client, world["b"], "answered") == ["General question"]
 
-    assert res.status_code == 404
-    assert "General question" not in questions(client, world["a"])
+    again = client.post(
+        f"/escalations/{world['esc_general']['id']}/reply", json=REPLY, headers=world["b"]
+    )
+    assert again.status_code == 409
 
 
-def test_vendor_without_pharmacy_sees_nothing(client, make_user, world):
+def test_vendor_without_pharmacy_sees_only_general(client, make_user, world):
     _, lonely = make_user("vendor", name="No Pharmacy")
-    assert questions(client, lonely) == []
+    assert questions(client, lonely) == ["General question"]
     res = client.post(f"/escalations/{world['esc_a']['id']}/reply", json=REPLY, headers=lonely)
     assert res.status_code == 404
     assert client.get("/insights", headers=lonely).json() == {
         "unhelpfulLast7Days": 0,
-        "pendingCount": 0,
+        "pendingCount": 1,
     }
 
 
@@ -128,11 +133,11 @@ def test_insights_respect_the_scope(client, db, make_user, world):
 
     assert client.get("/insights", headers=world["a"]).json() == {
         "unhelpfulLast7Days": 1,
-        "pendingCount": 1,
+        "pendingCount": 2,  # A + general
     }
     assert client.get("/insights", headers=world["b"]).json() == {
         "unhelpfulLast7Days": 1,
-        "pendingCount": 1,
+        "pendingCount": 2,  # B + general
     }
     assert client.get("/insights", headers=admin).json() == {
         "unhelpfulLast7Days": 3,
@@ -143,4 +148,4 @@ def test_insights_respect_the_scope(client, db, make_user, world):
 def test_insights_pending_count_drops_after_reply(client, world):
     client.post(f"/escalations/{world['esc_a']['id']}/reply", json=REPLY, headers=world["a"])
 
-    assert client.get("/insights", headers=world["a"]).json()["pendingCount"] == 0
+    assert client.get("/insights", headers=world["a"]).json()["pendingCount"] == 1  # general left

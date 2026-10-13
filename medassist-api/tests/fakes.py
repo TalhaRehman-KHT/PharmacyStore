@@ -7,6 +7,7 @@ CASCADE foreign keys. `queries` counts every execute() (for query-count tests).
 """
 
 import copy
+import re
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
@@ -169,6 +170,21 @@ class _Query:
     def in_(self, column: str, values) -> "_Query":
         allowed = list(values)
         self.filters.append(lambda r: r.get(column) in allowed)
+        return self
+
+    def or_(self, filters: str) -> "_Query":
+        # Only the PostgREST forms the repositories use: "col.is.null" and "col.in.(a,b)".
+        checks = []
+        for part in re.findall(r"[^,(]+(?:\([^)]*\))?", filters):
+            column, op, arg = part.split(".", 2)
+            if op == "is" and arg == "null":
+                checks.append(lambda r, c=column: r.get(c) is None)
+            elif op == "in":
+                values = [v for v in arg.strip("()").split(",") if v]
+                checks.append(lambda r, c=column, vs=values: r.get(c) in vs)
+            else:
+                raise NotImplementedError(f"fake or_ does not support {part!r}")
+        self.filters.append(lambda r: any(check(r) for check in checks))
         return self
 
     def gte(self, column: str, value) -> "_Query":
