@@ -8,9 +8,10 @@ import csv
 import re
 import unicodedata
 from functools import lru_cache
-from pathlib import Path
 
-US_NAMES_CSV = Path(__file__).resolve().parents[2] / "data" / "us_names.csv"
+from app.paths import DATA_DIR
+
+US_NAMES_CSV = DATA_DIR / "us_names.csv"
 
 _BRACKETS = re.compile(r"\([^)]*\)|\[[^\]]*\]")
 _UNIT = r"(?:mcg|mg|g|kg|ml|l|iu|i\.u\.|units?|%|dose|doses|puffs?)"

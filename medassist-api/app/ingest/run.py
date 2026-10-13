@@ -17,7 +17,8 @@ from app.db.client import create_db
 
 
 async def _drug_list() -> None:
-    from app.ingest.make_drug_list import DATA_DIR, run
+    from app.ingest.make_drug_list import run
+    from app.paths import DATA_DIR
 
     db = await create_db(get_settings())
     r = await run(db)

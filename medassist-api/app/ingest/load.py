@@ -13,7 +13,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.ingest.make_drug_list import DATA_DIR
+from app.paths import DATA_DIR
 from app.rag.embed import DailyQuotaExceeded, Embedder
 
 CHUNKS_FILE = DATA_DIR / "chunks" / "chunks.jsonl"

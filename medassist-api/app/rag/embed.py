@@ -22,7 +22,7 @@ from pathlib import Path
 import httpx
 from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential
 
-from app.ingest.make_drug_list import DATA_DIR
+from app.paths import DATA_DIR
 
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents"
 BATCH_SIZE = 100  # API limit: at most 100 texts per batchEmbedContents request

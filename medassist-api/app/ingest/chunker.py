@@ -11,7 +11,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from app.ingest.make_drug_list import DATA_DIR
+from app.paths import DATA_DIR
 
 MAX_CHARS = 1200  # whole chunk, header included
 BODY_CHARS = 1000  # body text per chunk, so header + body stays under MAX_CHARS

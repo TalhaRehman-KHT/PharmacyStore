@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import replace
 from typing import Any
 
-from app.ingest.make_drug_list import DATA_DIR
+from app.paths import DATA_DIR
 from app.rag.search import SearchHit
 
 DEFAULT_TOP_N = 5

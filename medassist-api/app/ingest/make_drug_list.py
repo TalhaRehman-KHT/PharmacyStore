@@ -14,8 +14,8 @@ from pathlib import Path
 from supabase import AsyncClient
 
 from app.ingest.names import clean_generic, clean_label, normalize_generic, us_name_map
+from app.paths import DATA_DIR
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 PAGE_SIZE = 1000  # PostgREST returns at most 1000 rows per request
 
 

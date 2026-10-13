@@ -25,7 +25,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from app.ingest.make_drug_list import DATA_DIR
+from app.paths import DATA_DIR
 
 LABEL_URL = "https://api.fda.gov/drug/label.json"
 CANDIDATES = 10  # labels fetched per query; the best one is kept
