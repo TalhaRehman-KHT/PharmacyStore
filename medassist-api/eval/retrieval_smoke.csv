@@ -1,0 +1,21 @@
+question,language,expected_drug,expected_section
+What is Panadol used for?,en,acetaminophen,Indications and Usage
+Can Panadol damage the liver?,en,acetaminophen,Warnings
+Is amoxicillin available as a 500 mg tablet?,en,amoxicillin,Dosage Forms and Strengths
+Does Cipro cause tendon rupture?,en,ciprofloxacin,Boxed Warning
+Is it dangerous to take Xanax with opioid painkillers?,en,alprazolam,Boxed Warning
+Who should not take Lipitor?,en,atorvastatin,Contraindications
+What are the common side effects of amlodipine?,en,amlodipine,Adverse Reactions
+Can clarithromycin be taken with colchicine?,en,clarithromycin,Contraindications
+What is albuterol used for?,en,albuterol,Indications and Usage
+What happens in an atenolol overdose?,en,atenolol,Overdosage
+Can ciprofloxacin be taken with tizanidine?,en,ciprofloxacin,Drug Interactions
+Can a child with flu take Disprin?,en,aspirin,Warnings
+What infections does cephalexin treat?,en,cephalexin,Indications and Usage
+Does atorvastatin interact with grapefruit juice?,en,atorvastatin,Drug Interactions
+Panadol din mein kitni dafa le sakte hain?,roman_urdu,acetaminophen,Dosage and Administration
+Cefixime ke side effects kya hain?,roman_urdu,cefixime,Adverse Reactions
+Bisoprolol kis bimari ke liye hai?,roman_urdu,bisoprolol fumarate,Indications and Usage
+Kya pregnancy mein amlodipine le sakte hain?,roman_urdu,amlodipine,Pregnancy
+Librax kis cheez ke liye istemal hoti hai?,roman_urdu,chlordiazepoxide,Indications and Usage
+Chlorpheniramine lene se neend aati hai?,roman_urdu,chlorpheniramine maleate,Warnings
