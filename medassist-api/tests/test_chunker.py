@@ -160,6 +160,20 @@ def test_run_writes_jsonl_and_report(tmp_path, monkeypatch):
     assert (tmp_path / "chunk_report.md").exists()
 
 
+def test_heading_only_section_is_skipped_but_short_answer_kept():
+    rec = record(
+        indications_and_usage="SUGGESTED USE:",
+        warnings_and_cautions="Drug Facts",
+        contraindications="None.",
+    )
+    assert [c.section for c in chunk_label(rec)] == ["Contraindications"]
+
+
+def test_clean_text_keeps_boxed_warning_title_and_fixes_spacing():
+    out = clean_text("WARNING: BLEEDING RISK Can cause bleeding [see Warnings ( 5.1 ) ] .")
+    assert out == "WARNING: BLEEDING RISK Can cause bleeding [see Warnings (5.1)]."
+
+
 @pytest.mark.parametrize("field_name", ["warnings_and_cautions", "warnings", "precautions"])
 def test_old_and_new_warning_fields_are_both_chunked(field_name):
     chunks = chunk_label(record(**{field_name: "Some warning text."}))

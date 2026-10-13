@@ -1,10 +1,12 @@
 """Section-aware chunking of FDA labels (data/raw/*.json -> data/chunks/chunks.jsonl).
 
-The scaffold (section map, metadata, CLI) is ready. `clean_text` and `chunk_label` are written
-in R15 (see prompts/run/chunker-guide.md); until then tests/test_chunker.py fails on purpose.
+Each openFDA field (boxed_warning, dosage_and_administration, ...) becomes its own chunks, so a
+chunk never mixes two sections. Long sections are cut at paragraphs, then sentences, then spaces,
+never inside a word. Why it is built this way: notes/chunker.md.
 """
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -97,14 +99,203 @@ def doc_meta(record: dict) -> DocMeta:
     )
 
 
+# ---------- cleaning ----------
+
+# Titles that labels put at the very start of a section ("5 WARNINGS AND PRECAUTIONS", "USES").
+# The header line already names the section, so the title is only noise. Longest first, so
+# "WARNINGS AND PRECAUTIONS" wins over "WARNINGS".
+_TITLES = sorted(
+    {t.upper() for t in SECTION_MAP.values()}
+    | {
+        "INDICATIONS AND USAGE",
+        "INDICATIONS",
+        "USES",
+        "DIRECTIONS",
+        "BOXED WARNING",
+        "WARNINGS AND CAUTIONS",
+        "NURSING MOTHERS",
+        "OVERDOSE",
+        "HOW SUPPLIED/STORAGE AND HANDLING",
+        "STORAGE",
+    },
+    key=len,
+    reverse=True,
+)
+# Optional section number ("5", "5.1"), then one title in capitals, then a space or the end.
+# "AND" may be written "&". A title followed by ":" ("WARNING: BLEEDING RISK") is real content
+# and stays, because the title must be followed by whitespace.
+_LEADING_TITLE = re.compile(
+    r"^\s*(?:\d+(?:\.\d+)*\s+)?(?:"
+    + "|".join(re.escape(t).replace(r"\ AND\ ", r"\s+(?:AND|&)\s+").replace(r"\ ", r"\s+")
+               for t in _TITLES)
+    + r")(?=\s|$)"
+)
+_SPACES = re.compile(r"[ \t\r\f\v]+")
+# openFDA writes "( 5.1 ) ." and "[see ... ] ,"; glue brackets and punctuation back on.
+_SPACE_BEFORE_PUNCT = re.compile(r" +([.,;:)\]])")
+_SPACE_AFTER_OPEN = re.compile(r"([(\[]) +")
+
+
 def clean_text(text: str) -> str:
-    """Collapse whitespace, drop a leading section number/title, remove empty lines (R15)."""
-    raise NotImplementedError("clean_text is written in R15 (prompts/run/chunker-guide.md)")
+    """Collapse whitespace, drop a leading section number/title, remove empty lines.
+
+    Paragraphs stay separated by exactly one blank line ("\\n\\n"), because the splitter uses
+    them as its first (best) place to cut.
+    """
+    text = _LEADING_TITLE.sub("", text, count=1)
+    paragraphs: list[str] = []
+    for block in re.split(r"\n\s*\n", text):  # a blank line = a new paragraph
+        lines = [_SPACES.sub(" ", line).strip() for line in block.splitlines()]
+        block = " ".join(line for line in lines if line)  # single newlines are just wrapping
+        block = _SPACE_AFTER_OPEN.sub(r"\1", _SPACE_BEFORE_PUNCT.sub(r"\1", block))
+        if block:
+            paragraphs.append(block)
+    return "\n\n".join(paragraphs)
+
+
+# ---------- splitting ----------
+
+# A sentence ends at . ! or ? followed by a space and something that can start a sentence.
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9•(\[\"'])")
+# Labels have no line breaks, but numbered subsections ("... daily. 5.2 Hypoglycemia ...")
+# are natural paragraph starts: a number like 5.2 + a capital word, right after a sentence end.
+_SUBSECTION = re.compile(r"(?<=[.!?:)\]])\s+(?=\d{1,2}\.\d{1,2}\s+[A-Z])")
+# A "sentence" that ends in one of these is not finished ("e.g. aspirin"): glue it to the next.
+_ABBREVIATIONS = ("e.g.", "i.e.", "etc.", "vs.", "approx.", "dr.", "no.", "fig.", "u.s.", "st.")
+
+
+@dataclass
+class _Piece:
+    """A unit the packer never cuts: a sentence (or a word-safe slice of a very long one)."""
+
+    text: str
+    new_paragraph: bool  # True when it starts a new paragraph (joined with a line break)
+
+
+def _sentences(paragraph: str) -> list[str]:
+    """Split one paragraph into sentences, keeping abbreviations inside their sentence."""
+    out: list[str] = []
+    for part in _SENTENCE_END.split(paragraph):
+        if out and out[-1].lower().endswith(_ABBREVIATIONS):
+            out[-1] += " " + part
+        else:
+            out.append(part)
+    return out
+
+
+def _word_slices(text: str, size: int) -> list[str]:
+    """Last resort for a run-on "sentence" (long bullet lists, tables): cut at spaces only."""
+    slices: list[str] = []
+    while len(text) > size:
+        cut = text.rfind(" ", 0, size)
+        if cut <= 0:  # one giant "word" (a URL): cut it anyway, it has no meaning to keep
+            cut = size
+        slices.append(text[:cut].strip())
+        text = text[cut:].strip()
+    return [*slices, text] if text else slices
+
+
+def _pieces(body: str) -> list[_Piece]:
+    """Paragraphs first; a paragraph that is too long becomes sentences; a sentence that is
+    still too long becomes word-safe slices. Slices leave room for the overlap."""
+    pieces: list[_Piece] = []
+    for paragraph in (p for block in body.split("\n\n") for p in _SUBSECTION.split(block)):
+        parts = [paragraph] if len(paragraph) <= BODY_CHARS else _sentences(paragraph)
+        first = True
+        for part in parts:
+            fits = len(part) <= BODY_CHARS
+            slices = [part] if fits else _word_slices(part, BODY_CHARS - OVERLAP_CHARS)
+            for s in slices:
+                pieces.append(_Piece(s, new_paragraph=first))
+                first = False
+    return pieces
+
+
+def _join(pieces: list[_Piece]) -> str:
+    text = ""
+    for p in pieces:
+        sep = "\n" if p.new_paragraph else " "
+        text = f"{text}{sep}{p.text}" if text else p.text
+    return text
+
+
+def _overlap(chunk: list[_Piece]) -> list[_Piece]:
+    """The end of a chunk that is repeated at the start of the next one (~OVERLAP_CHARS).
+
+    Whole sentences when they fit; otherwise the last ~OVERLAP_CHARS of the last sentence,
+    starting at a word boundary, so a fact cut at the border is still readable in one chunk.
+    """
+    tail: list[_Piece] = []
+    size = 0
+    for p in reversed(chunk):
+        if size + len(p.text) > OVERLAP_CHARS:
+            break
+        tail.insert(0, _Piece(p.text, p.new_paragraph))
+        size += len(p.text) + 1
+    if tail:
+        return tail
+    last = chunk[-1].text
+    start = last.find(" ", len(last) - OVERLAP_CHARS)
+    return [_Piece(last[start:].strip(), False)] if start > 0 else []
+
+
+def _split(body: str) -> list[str]:
+    """Pack pieces into chunk bodies of at most BODY_CHARS, each starting with an overlap."""
+    if len(body) <= BODY_CHARS:
+        return [body]  # short section: one chunk, no cutting at all
+    bodies: list[str] = []
+    current: list[_Piece] = []
+    fresh = 0  # pieces in `current` that are new (not overlap), so every chunk adds something
+    for piece in _pieces(body):
+        if current and len(_join([*current, piece])) > BODY_CHARS and fresh:
+            bodies.append(_join(current))
+            current = _overlap(current)
+            fresh = 0
+            # Drop overlap pieces while the new piece would not fit next to them.
+            while current and len(_join([*current, piece])) > BODY_CHARS:
+                current.pop(0)
+        current.append(piece)
+        fresh += 1
+    if fresh:
+        bodies.append(_join(current))
+    return bodies
+
+
+def _is_heading_only(body: str) -> bool:
+    """A "section" that is just a heading with nothing under it ("SUGGESTED USE:", "Drug Facts").
+
+    Such a chunk would match many questions while answering none, so it is skipped.
+    Short real answers ("None.", "Systemic fungal infections.") are kept.
+    """
+    short = len(body.split()) <= 3
+    return short and (body.endswith(":") or body.lower() == "drug facts")
 
 
 def chunk_label(record: dict) -> list[Chunk]:
-    """All chunks of one label: boxed_warning first, then SECTION_MAP order. Written in R15."""
-    raise NotImplementedError("chunk_label is written in R15 (prompts/run/chunker-guide.md)")
+    """All chunks of one label: boxed_warning first, then SECTION_MAP order.
+
+    Every chunk = header line + "\\n" + body, so it stays under MAX_CHARS.
+    Fields that are empty or not in SECTION_MAP give no chunks.
+    """
+    label = record["label"]
+    drug = record["drug"]
+    chunks: list[Chunk] = []
+    for field_name, section in SECTION_MAP.items():  # dict order = fixed output order
+        body = clean_text(section_text(label, field_name))
+        if not body or _is_heading_only(body):
+            continue
+        for i, part in enumerate(_split(body)):
+            chunks.append(
+                Chunk(
+                    label_id=label["id"],
+                    drug_name=drug,
+                    section=section,
+                    chunk_index=i,
+                    content=f"{header(drug, section)}\n{part}",
+                    metadata={"field": field_name},
+                )
+            )
+    return chunks
 
 
 def run(raw_dir: Path | None = None, out_dir: Path | None = None) -> dict:
