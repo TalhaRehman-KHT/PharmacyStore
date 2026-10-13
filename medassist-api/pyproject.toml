@@ -11,6 +11,10 @@ extend-exclude = [".venv", "data", "eval/cache"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+"scripts/snapshot_schema.py" = ["E501"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["integration: hits the real Supabase; runs only with RUN_INTEGRATION=1"]

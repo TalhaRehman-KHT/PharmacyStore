@@ -1,4 +1,4 @@
-"""Auth dependency tests: tokens are signed with the test secret; role lookup is mocked."""
+"""Auth through the app: tokens signed with the test secret, roles read from public.users (fake)."""
 
 from uuid import uuid4
 
@@ -11,8 +11,10 @@ from app.security import auth
 from tests.conftest import bearer, make_token
 
 INVALID = {"status": 401, "message": "Invalid or expired token"}
+FORBIDDEN = {"status": 403, "message": "Pharmacist access required"}
 SESSIONS = "/sessions"
 ESCALATIONS = "/escalations"
+REPLY = {"reply": "x" * 20}
 
 
 def test_no_header_returns_401(client):
@@ -47,34 +49,76 @@ def test_bad_token_returns_401(client, token):
     assert res.json() == INVALID
 
 
-def test_valid_token_reaches_stub(client):
+def test_valid_token_returns_200(client):
     res = client.get(SESSIONS, headers=bearer(make_token()))
 
-    assert res.status_code == 501
+    assert res.status_code == 200
+    assert res.json() == []
+
+
+def test_token_sub_selects_the_callers_data(client, db):
+    """The verified `sub` is the user id every query is filtered by."""
+    sub, other = uuid4(), uuid4()
+    mine = db.seed("chat_sessions", user_id=str(sub), title="mine")
+    db.seed("chat_sessions", user_id=str(other), title="not mine")
+
+    res = client.get(SESSIONS, headers=bearer(make_token(sub, email="a@b.test")))
+
+    assert [s["id"] for s in res.json()] == [mine["id"]]
 
 
 def test_health_needs_no_token(client):
     assert client.get("/health").status_code == 200
 
 
-@pytest.mark.parametrize("role", ["user", "doctor", None])
-def test_customer_on_escalations_returns_403(client, set_role, role):
-    set_role(role)
-    token = make_token()
+# ---------- roles (read from public.users, never from the token) ----------
 
-    assert client.get(ESCALATIONS, headers=bearer(token)).status_code == 403
-    res = client.post(
-        f"{ESCALATIONS}/{uuid4()}/reply", json={"reply": "x" * 20}, headers=bearer(token)
-    )
+
+@pytest.mark.parametrize("role", ["user", "doctor"])
+def test_customer_roles_on_escalations_return_403(client, make_user, role):
+    _, headers = make_user(role)
+
+    assert client.get(ESCALATIONS, headers=headers).status_code == 403
+    res = client.post(f"{ESCALATIONS}/{uuid4()}/reply", json=REPLY, headers=headers)
     assert res.status_code == 403
-    assert res.json() == {"status": 403, "message": "Pharmacist access required"}
+    assert res.json() == FORBIDDEN
+
+
+def test_unknown_user_on_escalations_returns_403(client):
+    headers = bearer(make_token())  # valid token, no public.users row
+
+    assert client.get(ESCALATIONS, headers=headers).status_code == 403
+    res = client.post(f"{ESCALATIONS}/{uuid4()}/reply", json=REPLY, headers=headers)
+    assert res.json() == FORBIDDEN
 
 
 @pytest.mark.parametrize("role", ["vendor", "admin"])
-def test_pharmacist_on_escalations_reaches_stub(client, set_role, role):
-    set_role(role)
+def test_inactive_staff_on_escalations_returns_403(client, make_user, role):
+    _, headers = make_user(role, is_active=False)
 
-    assert client.get(ESCALATIONS, headers=bearer(make_token())).status_code == 501
+    assert client.get(ESCALATIONS, headers=headers).status_code == 403
+    res = client.post(f"{ESCALATIONS}/{uuid4()}/reply", json=REPLY, headers=headers)
+    assert res.json() == FORBIDDEN
+
+
+@pytest.mark.parametrize("role", ["vendor", "admin"])
+def test_active_staff_on_escalations_returns_200(client, make_user, role):
+    _, headers = make_user(role)
+
+    assert client.get(ESCALATIONS, headers=headers).status_code == 200
+
+
+def test_token_role_claim_is_ignored(client):
+    """A forged role claim does not grant staff access; only public.users.role counts."""
+    headers = bearer(make_token(role="admin", app_role="vendor"))
+
+    assert client.get(ESCALATIONS, headers=headers).status_code == 403
+
+
+def test_role_lookup_can_be_mocked(client, set_role):
+    set_role("admin")
+
+    assert client.get(ESCALATIONS, headers=bearer(make_token())).status_code == 200
 
 
 def test_escalations_without_token_returns_401_not_403(client, set_role):
@@ -83,25 +127,22 @@ def test_escalations_without_token_returns_401_not_403(client, set_role):
     assert client.get(ESCALATIONS).status_code == 401
 
 
-async def test_current_user_from_claims():
-    sub = uuid4()
-    creds = auth.HTTPAuthorizationCredentials(
-        scheme="Bearer", credentials=make_token(sub, email="a@b.test")
-    )
+# Customer routes authenticate by token alone today: an unknown or inactive public.users row
+# still reaches them. Checking the row on every request belongs to Step 3.2 (auth redesign).
+def test_inactive_customer_still_reaches_customer_routes_until_3_2(client, make_user):
+    _, headers = make_user("user", is_active=False)
 
-    user = await auth.get_current_user(creds)
-
-    assert user.id == sub
-    assert user.email == "a@b.test"
-    assert user.role == "authenticated"
+    assert client.get(SESSIONS, headers=headers).status_code == 200
 
 
-async def test_jwks_used_when_no_secret(monkeypatch):
+# ---------- JWKS (no shared secret) ----------
+
+
+def test_jwks_used_when_no_secret(client, monkeypatch):
     """Without SUPABASE_JWT_SECRET the key comes from the project's JWKS endpoint."""
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    sub = uuid4()
     token = jwt.encode(
-        {"sub": str(sub), "aud": "authenticated", "exp": 9_999_999_999},
+        {"sub": str(uuid4()), "aud": "authenticated", "exp": 9_999_999_999},
         private_key,
         algorithm="RS256",
     )
@@ -118,10 +159,9 @@ async def test_jwks_used_when_no_secret(monkeypatch):
     monkeypatch.setattr(auth, "_jwks_client", lambda url: requested.append(url) or FakeJwks())
     config.get_settings.cache_clear()
     try:
-        creds = auth.HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-        user = await auth.get_current_user(creds)
+        res = client.get(SESSIONS, headers=bearer(token))
     finally:
         config.get_settings.cache_clear()
 
-    assert user.id == sub
+    assert res.status_code == 200
     assert requested == ["http://supabase.test"]

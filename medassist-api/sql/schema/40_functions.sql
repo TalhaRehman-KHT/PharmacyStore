@@ -51,7 +51,7 @@ AS $function$
 $function$;
 
 revoke all on function "public"."is_pharmacist"() from public, anon, authenticated, service_role;
-grant execute on function "public"."is_pharmacist"() to "anon", "authenticated", public, "service_role";
+grant execute on function "public"."is_pharmacist"() to "authenticated", "service_role";
 
 CREATE OR REPLACE FUNCTION public.login_user(user_email text, user_password text)
  RETURNS TABLE(id uuid, email text, name text, phone text, role text, company_name text, address text, city text, state text, email_verified boolean, phone_verified boolean, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone, last_login timestamp with time zone)

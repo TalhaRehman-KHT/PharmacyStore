@@ -7,6 +7,11 @@ data/raw/*
 !data/raw/.gitkeep
 data/chunks/*
 !data/chunks/.gitkeep
+data/*.txt
+data/*.csv
+data/drug_report.md
+!data/us_names.csv
+!data/drugs_extra.txt
 eval/cache/
 
 # ===============================

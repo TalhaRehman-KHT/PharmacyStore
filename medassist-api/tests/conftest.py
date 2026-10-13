@@ -21,6 +21,9 @@ TEST_ENV = {
     "SUPABASE_JWT_SECRET": "test-jwt-secret-at-least-32-bytes-long",
 }
 
+# The real values, saved before they are replaced; only tests/integration reads them.
+REAL_ENV = {name: os.environ.get(name) for name in TEST_ENV}
+
 # Must happen before app.main is imported, because it builds the app at import time.
 config.Settings.model_config["env_file"] = None
 os.environ.update(TEST_ENV)

@@ -32,6 +32,7 @@ Run each one in the Supabase SQL editor, in order. Each file is safe to run agai
 | 6 | 006_hybrid_search.sql | Search function (you write it in Step 6) |
 | 8 | 008_answer_escalation.sql | answer_escalation() RPC: atomic reply, backend-only |
 | 9 | 009_escalation_pharmacy.sql | escalations.pharmacy_id + index |
+| 11 | 011_auth_sessions.sql | auth_sessions (refresh-token hashes for the Node login, Stage A); RLS on, no grants |
 | check | 900_verify.sql | Read-only checks after setup |
 | reset | 999_drop_medassist.sql | Deletes all MedAssist tables (danger) |
 
