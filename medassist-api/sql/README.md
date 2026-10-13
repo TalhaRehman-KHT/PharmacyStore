@@ -32,11 +32,11 @@ Run each one in the Supabase SQL editor, in order. Each file is safe to run agai
 | 6 | 006_hybrid_search.sql | Search function (you write it in Step 6) |
 | 8 | 008_answer_escalation.sql | answer_escalation() RPC: atomic reply, backend-only |
 | 9 | 009_escalation_pharmacy.sql | escalations.pharmacy_id + index |
-| 11 | 011_auth_sessions.sql | auth_sessions (refresh-token hashes for the Node login, Stage A); RLS on, no grants |
+| 14 | 014_drop_auth_sessions.sql | Drops auth_sessions (Stage A cancelled; 011 deleted) |
 | check | 900_verify.sql | Read-only checks after setup |
 | reset | 999_drop_medassist.sql | Deletes all MedAssist tables (danger) |
 
 ## Workflow after every migration
-1. Run the migration in the Supabase SQL editor.
+1. Run the migration: `python -m scripts.run_sql sql/NNN_x.sql` (dry run), then add `--yes`.
 2. Re-run the snapshot: `python -m scripts.snapshot_schema`
 3. Review the drift: `git diff sql/schema docs/DB_SCHEMA.md`, and check that it matches what the migration meant to do.

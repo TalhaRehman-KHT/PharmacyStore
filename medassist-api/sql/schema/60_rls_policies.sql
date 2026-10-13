@@ -2,7 +2,6 @@
 -- Rebuild order on an EMPTY database: 00, 10, 20, 30, 40, 50, 60. No data is included.
 
 alter table "public"."alerts" enable row level security;
-alter table "public"."auth_sessions" enable row level security;
 alter table "public"."cart_items" enable row level security;
 alter table "public"."carts" enable row level security;
 alter table "public"."chat_messages" enable row level security;

@@ -3,8 +3,6 @@
 
 CREATE INDEX alerts_pharmacy_id_idx ON public.alerts USING btree (pharmacy_id);
 CREATE INDEX alerts_user_id_idx ON public.alerts USING btree (user_id);
-CREATE INDEX auth_sessions_active_idx ON public.auth_sessions USING btree (user_id) WHERE (revoked_at IS NULL);
-CREATE INDEX auth_sessions_user_idx ON public.auth_sessions USING btree (user_id);
 CREATE INDEX cart_items_cart_id_idx ON public.cart_items USING btree (cart_id);
 CREATE INDEX carts_user_id_idx ON public.carts USING btree (user_id);
 CREATE INDEX chat_messages_session_created_idx ON public.chat_messages USING btree (session_id, created_at);
