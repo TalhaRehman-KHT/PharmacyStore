@@ -16,7 +16,7 @@ function formatWhen(iso) {
  */
 export default function SessionSidebar({ sessions, loading, error, activeId, onSelect, onNewChat, onClear, onRetry }) {
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col w-full h-full bg-white">
       <div className="p-3 border-b border-border">
         <button
           type="button"

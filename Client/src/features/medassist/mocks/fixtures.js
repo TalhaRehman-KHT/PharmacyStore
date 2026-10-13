@@ -288,7 +288,7 @@ export function createSeedState() {
         id: "msg-s4-2",
         sessionId: "sess-4",
         role: "assistant",
-        content: "Ji haan, **Risek 20mg** stock mein hai. 14 capsules ka pack Rs 480 ka hai.",
+        content: "Ji haan, **Risek 20mg** stock mein hai. 14 capsules ka pack $480.00 ka hai.",
         createdAt: ago(60 * 24 * 6 - 1),
         meta: {
           messageId: "msg-s4-2",

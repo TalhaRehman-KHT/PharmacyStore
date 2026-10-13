@@ -40,8 +40,10 @@ import UserHealthRemindersAddEdit from "./pages/User/UserHealthRemindersAddEdit.
 import UserProfile from "./pages/User/UserProfile.jsx";
 import UserOrders from "./pages/User/UserOrders.jsx";
 import UserOrderDetail from "./pages/User/UserOrderDetail.jsx";
-import UserAssistant from "./features/medassist/pages/UserAssistant.jsx";
-import VendorEscalations from "./features/medassist/pages/VendorEscalations.jsx";
+import {
+  LazyUserAssistant as UserAssistant,
+  LazyVendorEscalations as VendorEscalations,
+} from "./features/medassist/pages/LazyPages.jsx";
 
 function App() {
   return (

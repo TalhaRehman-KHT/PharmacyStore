@@ -1,10 +1,11 @@
 /** DOM id of a citation card, unique per message. */
 export const citationDomId = (messageId, n) => `medassist-cite-${messageId}-${n}`;
 
-const pkr = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
-
-/** Format a PKR amount, e.g. 45 -> "Rs 45". */
-export const formatPkr = (amount) => pkr.format(Number(amount) || 0);
+/**
+ * Format a price exactly like the shop pages do (`${price.toFixed(2)}`), e.g. 45 -> "$45.00".
+ * The shop has no shared helper, so this copies its inline format instead of importing it.
+ */
+export const formatPrice = (amount) => `$${(Number(amount) || 0).toFixed(2)}`;
 
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 const RELATIVE_STEPS = [

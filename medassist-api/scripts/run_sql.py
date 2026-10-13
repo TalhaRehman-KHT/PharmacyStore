@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run ONE MedAssist SQL file against the live database, safely.
 
-  python -m scripts.run_sql sql/005_seed_synonyms.sql            # dry run: shows the SQL and the safety check
-  python -m scripts.run_sql sql/005_seed_synonyms.sql --yes      # really runs it
+  python -m scripts.run_sql sql/005_seed_synonyms.sql        # dry run: shows the safety check
+  python -m scripts.run_sql sql/005_seed_synonyms.sql --yes  # really runs it
 
 Safety:
 - refuses any statement that changes a SHOP table or its policies (users, orders, medicines, ...)
@@ -21,18 +21,27 @@ from pathlib import Path
 import psycopg
 
 ROOT = Path(__file__).resolve().parent.parent
-SHOP_TABLES = ["users", "otps", "pharmacies", "medicines", "medicine_batches", "orders", "order_items", "carts",
-               "cart_items", "prescriptions", "reminders", "reminder_times", "alerts", "stock_transactions"]
+SHOP_TABLES = [
+    "users", "otps", "pharmacies", "medicines", "medicine_batches", "orders", "order_items",
+    "carts", "cart_items", "prescriptions", "reminders", "reminder_times", "alerts",
+    "stock_transactions",
+]
 _T = r"(?:public\.)?\"?(" + "|".join(SHOP_TABLES) + r")\"?\b"
+_IS = re.I | re.S
 FORBIDDEN = [
-    (re.compile(r"\b(alter|drop|truncate)\s+table\s+(if\s+exists\s+)?(only\s+)?" + _T, re.I), "changes a shop table"),
+    (re.compile(r"\b(alter|drop|truncate)\s+table\s+(if\s+exists\s+)?(only\s+)?" + _T, re.I),
+     "changes a shop table"),
     (re.compile(r"\binsert\s+into\s+" + _T, re.I), "inserts into a shop table"),
     (re.compile(r"\bupdate\s+(only\s+)?" + _T, re.I), "updates a shop table"),
     (re.compile(r"\bdelete\s+from\s+(only\s+)?" + _T, re.I), "deletes from a shop table"),
-    (re.compile(r"\b(create|drop|alter)\s+policy\b[^;]*?\bon\s+" + _T, re.I | re.S), "changes a shop table policy"),
-    (re.compile(r"\b(create|drop)\s+trigger\b[^;]*?\bon\s+" + _T, re.I | re.S), "adds/drops a trigger on a shop table"),
-    (re.compile(r"\b(grant|revoke)\b[^;]*?\bon\s+(table\s+)?" + _T, re.I | re.S), "changes privileges on a shop table"),
-    (re.compile(r"\bdrop\s+(schema|database|extension)\b", re.I), "drops a schema/database/extension"),
+    (re.compile(r"\b(create|drop|alter)\s+policy\b[^;]*?\bon\s+" + _T, _IS),
+     "changes a shop table policy"),
+    (re.compile(r"\b(create|drop)\s+trigger\b[^;]*?\bon\s+" + _T, _IS),
+     "adds/drops a trigger on a shop table"),
+    (re.compile(r"\b(grant|revoke)\b[^;]*?\bon\s+(table\s+)?" + _T, _IS),
+     "changes privileges on a shop table"),
+    (re.compile(r"\bdrop\s+(schema|database|extension)\b", re.I),
+     "drops a schema/database/extension"),
 ]
 
 

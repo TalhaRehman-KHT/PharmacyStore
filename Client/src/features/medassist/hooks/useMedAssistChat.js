@@ -14,6 +14,7 @@ const localId = (prefix) => `local-${prefix}-${Date.now().toString(36)}-${++loca
  * Chat state for one MedAssist conversation.
  * - status: 'loading' until the first token (or while a session loads), then 'streaming', then 'idle'.
  * - On error the user's question stays in the list; retry() removes it and asks again.
+ * - Client-only `note` on a user message: 'failed' (no answer) or 'stopped' (user pressed Stop).
  *
  * @param {{ initialSessionId?: string, onSessionCreated?: (sessionId: string) => void }} [options]
  */
@@ -29,6 +30,7 @@ export function useMedAssistChat({ initialSessionId, onSessionCreated } = {}) {
   const abortRef = useRef(null);
   const sessionIdRef = useRef(sessionId);
   const lastQuestionRef = useRef(null);
+  const lastUserIdRef = useRef(null);
   const loadTokenRef = useRef(0);
   const onSessionCreatedRef = useRef(onSessionCreated);
 
@@ -61,10 +63,12 @@ export function useMedAssistChat({ initialSessionId, onSessionCreated } = {}) {
 
       const sid = sessionIdRef.current ?? "";
       const now = new Date().toISOString();
+      const userId = localId("user");
+      lastUserIdRef.current = userId;
       let assistantId = localId("assistant");
       setMessages((prev) => [
         ...prev,
-        { id: localId("user"), sessionId: sid, role: "user", content: text, createdAt: now },
+        { id: userId, sessionId: sid, role: "user", content: text, createdAt: now },
         { id: assistantId, sessionId: sid, role: "assistant", content: "", createdAt: now },
       ]);
       setError(null);
@@ -78,7 +82,10 @@ export function useMedAssistChat({ initialSessionId, onSessionCreated } = {}) {
         if (!live()) return;
         abortRef.current = null;
         const id = assistantId;
-        setMessages((prev) => prev.filter((m) => m.id !== id));
+        // The question keeps a "not answered" note after the error card is gone.
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== id).map((m) => (m.id === userId ? { ...m, note: "failed" } : m))
+        );
         setError(toApiError(e));
         setStatus("error");
       };
@@ -126,6 +133,9 @@ export function useMedAssistChat({ initialSessionId, onSessionCreated } = {}) {
 
   const stop = useCallback(() => {
     if (!abortRef.current) return;
+    // Mark the question so the user sees the answer was stopped (any partial text is kept).
+    const id = lastUserIdRef.current;
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, note: "stopped" } : m)));
     abortCurrent();
     setStatus("idle");
   }, [abortCurrent]);

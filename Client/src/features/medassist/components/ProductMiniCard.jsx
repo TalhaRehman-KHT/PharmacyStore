@@ -1,5 +1,5 @@
 import { Pill, Plus } from "lucide-react";
-import { formatPkr } from "../utils.js";
+import { formatPrice } from "../utils.js";
 
 /**
  * @param {{ product: import("../types.js").ProductCard, onAdd: (p: import("../types.js").ProductCard) => void,
@@ -25,7 +25,7 @@ export default function ProductMiniCard({ product, onAdd, addingId, compact = fa
           <p className="text-sm font-bold text-text-primary truncate">{product.name}</p>
           <p className="text-xs text-text-secondary truncate capitalize">{product.genericName}</p>
           <div className="mt-1 flex items-center gap-2">
-            <span className="text-sm font-bold text-primary-green">{formatPkr(product.price)}</span>
+            <span className="text-sm font-bold text-primary-green">{formatPrice(product.price)}</span>
             <span
               className="text-[11px] font-bold px-2 py-0.5 rounded-lg whitespace-nowrap"
               style={

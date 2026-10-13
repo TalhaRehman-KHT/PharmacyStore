@@ -115,7 +115,11 @@ export default function MessageList({
         {messages.length === 0 && !busy && !error && emptyState}
 
         {messages.map((m) => {
-          if (m.role === "user") return <UserMessage key={m.id} message={m} />;
+          if (m.role === "user") {
+            // The error card already explains the latest failed question.
+            const showNote = !(status === "error" && m.id === lastUserId);
+            return <UserMessage key={m.id} message={m} showNote={showNote} />;
+          }
           if (m.role === "pharmacist") return <PharmacistMessage key={m.id} message={m} />;
           if (!m.content && !m.meta) return <SearchingIndicator key={m.id} />;
           return (

@@ -60,13 +60,17 @@ export default function VendorEscalations() {
                         }`}
                       >
                         {label}
-                        {key === "pending" && counts.pending > 0 && (
+                        {counts[key] > 0 && (
                           <span
                             className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${
-                              active ? "bg-white text-primary-green" : "bg-primary-orange text-white"
+                              active
+                                ? "bg-white text-primary-green"
+                                : key === "pending"
+                                  ? "bg-primary-orange text-white"
+                                  : "bg-gray-300 text-gray-700"
                             }`}
                           >
-                            {counts.pending}
+                            {counts[key]}
                           </span>
                         )}
                       </button>

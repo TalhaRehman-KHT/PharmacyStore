@@ -1,9 +1,11 @@
-import { useCallback, useContext, useEffect, useRef } from "react";
+import { lazy, Suspense, useCallback, useContext, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { AuthContext } from "../../../context/AuthContext.jsx";
 import { useMedAssist } from "../hooks/useMedAssist.js";
 import ChatLauncher from "./ChatLauncher.jsx";
-import ChatPanel from "./ChatPanel.jsx";
+
+// The panel (and react-markdown) loads on first open; the launcher is tiny and shows at once.
+const ChatPanel = lazy(() => import("./ChatPanel.jsx"));
 
 const CUSTOMER_ROLES = ["user", "doctor"];
 const ASSISTANT_PATH = "/user/assistant";
@@ -36,13 +38,15 @@ export default function MedAssistWidget() {
   if (!visible) return null;
 
   return open ? (
-    <ChatPanel
-      chat={chat}
-      loggedIn={loggedIn}
-      productName={productName}
-      rateLimitedUntil={rateLimitedUntil}
-      onClose={close}
-    />
+    <Suspense fallback={null}>
+      <ChatPanel
+        chat={chat}
+        loggedIn={loggedIn}
+        productName={productName}
+        rateLimitedUntil={rateLimitedUntil}
+        onClose={close}
+      />
+    </Suspense>
   ) : (
     <ChatLauncher ref={launcherRef} onClick={() => setOpen(true)} />
   );

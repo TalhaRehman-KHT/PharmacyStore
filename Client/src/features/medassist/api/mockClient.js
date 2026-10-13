@@ -1,3 +1,4 @@
+import { formatPrice } from "../utils.js";
 import {
   ALTERNATIVES,
   DEFAULT_DRUG,
@@ -110,8 +111,8 @@ export function buildAnswer(scenario, question) {
   switch (scenario) {
     case "product_in_stock": {
       const content = isRomanUrdu(question)
-        ? `Ji haan, **${product.name}** stock mein hai. Qeemat Rs ${product.price} hai.`
-        : `Yes, **${product.name}** is in stock for Rs ${product.price}.`;
+        ? `Ji haan, **${product.name}** stock mein hai. Qeemat ${formatPrice(product.price)} hai.`
+        : `Yes, **${product.name}** is in stock for ${formatPrice(product.price)}.`;
       return { content, citations: [], route: "product", escalated: false, products: [{ ...product }] };
     }
     case "product_out_of_stock": {
