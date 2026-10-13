@@ -21,7 +21,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from app.rag.search import DEFAULT_MATCH_COUNT, SearchHit, hybrid_search
+from app.rag.retrieve import retrieve
+from app.rag.search import SearchHit
 
 EVAL_DIR = Path(__file__).resolve().parent
 QUESTIONS_FILE = EVAL_DIR / "retrieval_smoke.csv"
@@ -112,9 +113,8 @@ async def query_vectors(
 
 async def run_pipelines(db, reranker, q: Question, vector: list[float]) -> list[Outcome]:
     """(a) vector only and (b) hybrid + rerank for one question."""
-    vec_hits = await hybrid_search(db, vector, "", match_count=K)
-    hybrid_hits = await hybrid_search(db, vector, q.question, match_count=DEFAULT_MATCH_COUNT)
-    reranked = await reranker.rerank(q.question, hybrid_hits, top_n=K)
+    vec_hits = await retrieve(db, reranker, q.question, vector, rerank=False, top_k=K)
+    reranked = await retrieve(db, reranker, q.question, vector, top_k=K)
     return [
         Outcome(q, "vector", first_hit_rank(vec_hits, q), vec_hits[:K]),
         Outcome(q, "hybrid_rerank", first_hit_rank(reranked, q), reranked[:K]),

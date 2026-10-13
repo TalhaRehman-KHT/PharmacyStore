@@ -71,7 +71,7 @@ async def test_pipelines_vector_uses_empty_text_and_hybrid_is_reranked(monkeypat
         async def rerank(self, query, hits, top_n=None):
             return list(reversed(hits))[:top_n]  # puts the right chunk first
 
-    monkeypatch.setattr(rs, "hybrid_search", fake_search)
+    monkeypatch.setattr("app.rag.retrieve.hybrid_search", fake_search)
     vec, hyb = await rs.run_pipelines(None, FakeReranker(), Q, [0.0])
     assert seen == [("", rs.K), (Q.question, 20)]
     assert (vec.mode, vec.rank) == ("vector", None)
