@@ -1,56 +1,164 @@
 /**
- * HTTP client for the MedAssist FastAPI service. Not wired yet: every method rejects.
+ * HTTP client for the MedAssist FastAPI service (medassist-api).
+ *
+ * Every request sends `X-User-Id` (the logged-in user's id, same trust model as the main app;
+ * see medassist-api/docs/AUTH_MODE.md). Failures are thrown / reported as ApiError.
  *
  * @typedef {import("./client.js").MedAssistClient} MedAssistClient
+ * @typedef {import("../types.js").ApiError} ApiError
  */
+import { getCurrentUserId } from "./currentUser.js";
+import { createSseParser } from "./sse.js";
 
-export const MEDASSIST_API_URL = String(import.meta.env.VITE_MEDASSIST_API_URL || "")
+export const MEDASSIST_API_URL = String(import.meta.env.VITE_MEDASSIST_API_URL || "http://localhost:8000")
   .trim()
   .replace(/\/$/, "");
 
-function notImplemented() {
-  throw new Error("Not implemented yet");
+const NOT_LOGGED_IN = { status: 401, message: "Please log in again" };
+const UNREACHABLE = { status: 0, message: "Cannot reach MedAssist" };
+
+/** @returns {ApiError} */
+function apiError(status, message, retryAfterSec) {
+  return retryAfterSec == null ? { status, message } : { status, message, retryAfterSec };
+}
+
+function isAbort(err) {
+  return err?.name === "AbortError";
+}
+
+/** Turn a non-2xx response into an ApiError (server body is { status, message }). */
+async function errorFrom(res) {
+  if (res.status === 401) return NOT_LOGGED_IN;
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    // not JSON
+  }
+  const message = typeof body?.message === "string" && body.message ? body.message : `Request failed (${res.status})`;
+  if (res.status === 429) {
+    const header = Number(res.headers.get("Retry-After"));
+    const retry = Number.isFinite(header) && header > 0 ? header : Number(body?.retryAfterSec) || undefined;
+    return apiError(429, message, retry);
+  }
+  return apiError(res.status, message);
+}
+
+/** fetch with X-User-Id; throws ApiError on no user, network failure or non-2xx. */
+async function request(path, { method = "GET", body, signal } = {}) {
+  const userId = getCurrentUserId();
+  if (!userId) throw NOT_LOGGED_IN;
+  const headers = { "X-User-Id": userId };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  let res;
+  try {
+    res = await fetch(`${MEDASSIST_API_URL}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
+    });
+  } catch (err) {
+    if (isAbort(err)) throw err;
+    throw UNREACHABLE;
+  }
+  if (!res.ok) throw await errorFrom(res);
+  return res;
+}
+
+async function json(path, options) {
+  const res = await request(path, options);
+  return res.status === 204 ? null : res.json();
+}
+
+function parseData(data) {
+  try {
+    return data ? JSON.parse(data) : {};
+  } catch {
+    return {};
+  }
 }
 
 /** @type {MedAssistClient} */
 export const httpClient = {
-  // TODO: POST `${MEDASSIST_API_URL}/ask` with { question, sessionId } and read the response as
-  // Server-Sent Events (fetch + ReadableStream, so `signal` can abort it). Events, in order:
-  //   event: token      data: { "text": string }          -> h.onToken(text)    (many)
-  //   event: citations  data: Citation[]                  -> h.onCitations(c)   (once, may be [])
-  //   event: meta       data: AnswerMeta                  -> h.onMeta(m)        (once; carries messageId + sessionId)
-  //   event: done       data: {}                          -> h.onDone()         (once, last)
-  // Non-2xx before the stream starts -> h.onError({ status, message, retryAfterSec from Retry-After }).
-  // An `error` event mid-stream -> h.onError(...). Abort -> resolve silently, no handler calls.
-  async askStream() {
-    notImplemented();
+  /**
+   * POST /ask/stream and read Server-Sent Events: token (many), citations, meta, done; or error.
+   * Abort (Stop button) resolves silently without calling any handler.
+   */
+  async askStream({ question, sessionId }, h, signal) {
+    let res;
+    try {
+      res = await request("/ask/stream", { method: "POST", body: { question, sessionId }, signal });
+    } catch (err) {
+      if (!isAbort(err)) h.onError(err);
+      return;
+    }
+
+    let finished = false;
+    const parser = createSseParser(({ event, data }) => {
+      if (finished || signal?.aborted) return;
+      const payload = parseData(data);
+      if (event === "token") h.onToken(String(payload.text ?? ""));
+      else if (event === "citations") h.onCitations(Array.isArray(payload) ? payload : []);
+      else if (event === "meta") h.onMeta(payload);
+      else if (event === "done") {
+        finished = true;
+        h.onDone();
+      } else if (event === "error") {
+        finished = true;
+        h.onError(apiError(Number(payload.status) || 500, payload.message || "Something went wrong"));
+      }
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    try {
+      while (!finished) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        parser.push(decoder.decode(value, { stream: true }));
+      }
+      parser.push(decoder.decode());
+      parser.end();
+    } catch (err) {
+      if (isAbort(err) || signal?.aborted) return;
+      finished = true;
+      h.onError(UNREACHABLE);
+      return;
+    } finally {
+      if (finished) reader.cancel().catch(() => {});
+    }
+    if (!finished && !signal?.aborted) h.onError(apiError(0, "The answer was cut off. Please try again."));
   },
-  // TODO: GET /sessions -> ChatSession[]
+
   async listSessions() {
-    notImplemented();
+    return json("/sessions");
   },
-  // TODO: GET /sessions/:id/messages -> ChatMessage[]
-  async getMessages() {
-    notImplemented();
+
+  async getMessages(sessionId) {
+    return json(`/sessions/${encodeURIComponent(sessionId)}/messages`);
   },
-  // TODO: DELETE /sessions
+
   async clearHistory() {
-    notImplemented();
+    await json("/sessions", { method: "DELETE" });
   },
-  // TODO: POST /messages/:id/feedback { rating, comment }
-  async sendFeedback() {
-    notImplemented();
+
+  async sendFeedback(messageId, rating, comment) {
+    const body = comment ? { rating, comment } : { rating };
+    await json(`/messages/${encodeURIComponent(messageId)}/feedback`, { method: "POST", body });
   },
-  // TODO: GET /escalations?status=pending|answered (pharmacist only)
-  async listEscalations() {
-    notImplemented();
+
+  async listEscalations(status) {
+    return json(`/escalations?status=${encodeURIComponent(status)}`);
   },
-  // TODO: POST /escalations/:id/reply { reply } (pharmacist only)
-  async replyEscalation() {
-    notImplemented();
+
+  async replyEscalation(id, reply) {
+    await json(`/escalations/${encodeURIComponent(id)}/reply`, { method: "POST", body: { reply } });
   },
-  // TODO: GET /insights/feedback -> { unhelpfulCount } (pharmacist only; endpoint still to be agreed)
+
+  /** GET /insights -> { unhelpfulLast7Days, pendingCount }; the card uses unhelpfulCount. */
   async getFeedbackStats() {
-    notImplemented();
+    const data = await json("/insights");
+    return { unhelpfulCount: Number(data?.unhelpfulLast7Days) || 0, pendingCount: Number(data?.pendingCount) || 0 };
   },
 };

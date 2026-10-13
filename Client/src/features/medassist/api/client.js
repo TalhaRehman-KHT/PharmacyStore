@@ -27,12 +27,13 @@
  * @property {(messageId: string, rating: 1 | -1, comment?: string) => Promise<void>} sendFeedback
  * @property {(status: 'pending' | 'answered') => Promise<Escalation[]>} listEscalations
  * @property {(id: string, reply: string) => Promise<void>} replyEscalation
- * @property {() => Promise<FeedbackStats>} getFeedbackStats Pharmacist insights. Not in the original FastAPI contract yet.
+ * @property {() => Promise<FeedbackStats>} getFeedbackStats Pharmacist insights (GET /insights).
  */
 
 /**
  * @typedef {Object} FeedbackStats
- * @property {number} unhelpfulCount answers rated -1 in the last 7 days
+ * @property {number} unhelpfulCount answers rated -1 in the last 7 days (API: unhelpfulLast7Days)
+ * @property {number} [pendingCount] pending escalations in the caller's scope (HTTP client only)
  */
 
 /**
