@@ -8,6 +8,7 @@ data/raw/*
 data/chunks/*
 !data/chunks/.gitkeep
 data/embed_cache/
+data/flashrank/
 data/*.txt
 data/*.csv
 data/drug_report.md

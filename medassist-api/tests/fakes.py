@@ -35,7 +35,10 @@ DEFAULTS = {
 UNIQUE = {"feedback": ("message_id", "user_id")}
 # Live RPC signatures (docs/DB_SCHEMA.md). PostgREST resolves a function by its parameter
 # NAMES, so a wrong name fails against the real DB; the fake fails the same way.
-RPC_PARAMS = {"answer_escalation": ("p_id", "p_pharmacist", "p_reply")}
+RPC_PARAMS = {
+    "answer_escalation": ("p_id", "p_pharmacist", "p_reply"),
+    "hybrid_search": ("query_embedding", "query_text", "match_count", "drug_filter"),
+}
 # parent table -> [(child table, child column)] deleted with the parent row.
 CASCADES = {
     "users": [("chat_sessions", "user_id")],
