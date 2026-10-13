@@ -1,0 +1,64 @@
+acetaminophen
+ibuprofen
+diclofenac
+naproxen
+mefenamic acid
+aspirin
+tramadol
+amoxicillin
+amoxicillin and clavulanate potassium
+azithromycin
+clarithromycin
+cephalexin
+cefixime
+cefuroxime
+ciprofloxacin
+levofloxacin
+doxycycline
+metronidazole
+nitrofurantoin
+fluconazole
+omeprazole
+esomeprazole
+pantoprazole
+famotidine
+metoclopramide
+ondansetron
+loperamide
+domperidone
+cetirizine
+loratadine
+fexofenadine
+chlorpheniramine
+montelukast
+albuterol
+prednisolone
+prednisone
+dexamethasone
+metformin
+glimepiride
+gliclazide
+sitagliptin
+insulin glargine
+amlodipine
+losartan
+valsartan
+lisinopril
+atenolol
+bisoprolol
+hydrochlorothiazide
+furosemide
+atorvastatin
+rosuvastatin
+clopidogrel
+warfarin
+levothyroxine
+sertraline
+escitalopram
+alprazolam
+diazepam
+gabapentin
+pregabalin
+folic acid
+ferrous sulfate
+cholecalciferol
