@@ -1,6 +1,6 @@
 """HTTP routes for the client.
 
-Every route needs a valid bearer token; /escalations routes also need a staff role.
+Every route needs a caller (app/security/auth.py); /escalations and /insights also need staff.
 Customer data is always filtered by the verified token's user id (the service key bypasses RLS).
 
 Responses serialize by alias (camelCase) and drop None fields, so optional fields are
@@ -22,9 +22,10 @@ from app.api.deps import get_repos
 from app.errors import Conflict, NotFound
 from app.rate_limit import ask_limit
 from app.repositories import Repos
+from app.repositories.escalations import EscalationScope
 from app.schemas.chat import AskRequest, AskResponse, ChatMessageOut, ChatSessionOut, FeedbackIn
 from app.schemas.common import EscalationStatus, Variant
-from app.schemas.escalation import EscalationOut, EscalationReplyIn
+from app.schemas.escalation import EscalationOut, EscalationReplyIn, InsightsOut
 from app.security.auth import CurrentUser, get_current_user, require_staff
 from app.services import chat
 
@@ -42,6 +43,14 @@ _OUT = {"response_model_by_alias": True, "response_model_exclude_none": True}
 User = Annotated[CurrentUser, Depends(get_current_user)]
 Staff = Annotated[CurrentUser, Depends(require_staff)]
 ReposDep = Annotated[Repos, Depends(get_repos)]
+
+
+async def get_scope(staff: Staff, repos: ReposDep) -> EscalationScope:
+    """Dependency: the staff caller's escalation scope (loaded once per request)."""
+    return await repos.escalation_scope(staff.id, staff.role)
+
+
+Scope = Annotated[EscalationScope, Depends(get_scope)]
 
 
 async def _check_pharmacy(repos: Repos, body: AskRequest) -> None:
@@ -148,12 +157,12 @@ async def send_feedback(message_id: UUID, body: FeedbackIn, user: User, repos: R
     "/escalations", response_model=list[EscalationOut], tags=["escalations"], **_OUT, **_STAFF
 )
 async def list_escalations(
-    staff: Staff,
+    scope: Scope,
     repos: ReposDep,
     status_filter: Annotated[EscalationStatus, Query(alias="status")] = "pending",
 ) -> list[EscalationOut]:
-    """List escalations by status for staff (vendor/admin)."""
-    return await repos.list_escalations(status_filter)
+    """List escalations by status: admin/doctor see all, a vendor only their pharmacies'."""
+    return await repos.list_escalations(status_filter, scope)
 
 
 @router.post(
@@ -167,7 +176,13 @@ async def list_escalations(
     },
 )
 async def reply_escalation(
-    escalation_id: UUID, body: EscalationReplyIn, staff: Staff, repos: ReposDep
+    escalation_id: UUID, body: EscalationReplyIn, staff: Staff, scope: Scope, repos: ReposDep
 ) -> None:
-    """Answer a pending escalation; the reply is added to the customer's chat."""
-    await repos.answer_escalation(escalation_id, staff.id, body.reply)
+    """Answer a pending escalation in your scope; the reply is added to the customer's chat."""
+    await repos.answer_escalation(escalation_id, staff.id, body.reply, scope)
+
+
+@router.get("/insights", response_model=InsightsOut, tags=["escalations"], **_OUT, **_STAFF)
+async def get_insights(scope: Scope, repos: ReposDep) -> InsightsOut:
+    """Pending escalations and unhelpful answers (last 7 days) in the caller's scope."""
+    return await repos.get_insights(scope)

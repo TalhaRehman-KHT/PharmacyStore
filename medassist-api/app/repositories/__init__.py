@@ -45,11 +45,19 @@ class Repos:
     async def create_escalation(self, **kwargs) -> dict:
         return await escalations.create_escalation(self.db, **kwargs)
 
-    async def list_escalations(self, status):
-        return await escalations.list_escalations(self.db, status)
+    async def escalation_scope(self, user_id: UUID, role: str | None):
+        return await escalations.load_scope(self.db, user_id, role)
 
-    async def answer_escalation(self, escalation_id: UUID, pharmacist_id: UUID, reply: str):
-        await escalations.answer_escalation(self.db, escalation_id, pharmacist_id, reply)
+    async def list_escalations(self, status, scope):
+        return await escalations.list_escalations(self.db, status, scope)
+
+    async def answer_escalation(
+        self, escalation_id: UUID, pharmacist_id: UUID, reply: str, scope
+    ) -> None:
+        await escalations.answer_escalation(self.db, escalation_id, pharmacist_id, reply, scope)
+
+    async def get_insights(self, scope):
+        return await escalations.get_insights(self.db, scope)
 
     # pharmacies (read-only shop table)
     async def pharmacy_exists(self, pharmacy_id: UUID) -> bool:

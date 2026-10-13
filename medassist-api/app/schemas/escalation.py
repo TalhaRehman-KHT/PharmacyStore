@@ -29,3 +29,10 @@ class EscalationReplyIn(CamelModel):
     """Pharmacist reply; shown to the customer in their chat."""
 
     reply: Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, max_length=2000)]
+
+
+class InsightsOut(CamelModel):
+    """Pharmacist insights card, limited to the caller's escalation scope."""
+
+    unhelpful_last_7_days: int
+    pending_count: int

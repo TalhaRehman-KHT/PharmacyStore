@@ -4,7 +4,10 @@ import pytest
 
 from app.errors import Conflict
 from app.repositories import escalations
+from app.repositories.escalations import EscalationScope
 from tests.fakes import RPC_PARAMS, FakeError
+
+ALL = EscalationScope(all_access=True)
 
 
 def _seed_escalation(db) -> tuple[dict, dict]:
@@ -54,7 +57,9 @@ async def test_unknown_rpc_fails(db):
 async def test_repository_uses_live_names(db):
     esc, pharmacist = _seed_escalation(db)
 
-    await escalations.answer_escalation(db, esc["id"], pharmacist["id"], "Please see a doctor.")
+    await escalations.answer_escalation(
+        db, esc["id"], pharmacist["id"], "Please see a doctor.", ALL
+    )
 
     row = db.rows("escalations")[0]
     assert row["status"] == "answered"
@@ -66,10 +71,10 @@ async def test_repository_uses_live_names(db):
 
 async def test_repository_second_answer_conflicts(db):
     esc, pharmacist = _seed_escalation(db)
-    await escalations.answer_escalation(db, esc["id"], pharmacist["id"], "First")
+    await escalations.answer_escalation(db, esc["id"], pharmacist["id"], "First", ALL)
 
     with pytest.raises(Conflict):
-        await escalations.answer_escalation(db, esc["id"], pharmacist["id"], "Second")
+        await escalations.answer_escalation(db, esc["id"], pharmacist["id"], "Second", ALL)
 
 
 async def test_empty_reply_rejected_like_live(db):

@@ -53,10 +53,18 @@ def assistant_message(db, client, headers) -> dict:
     return next(m for m in messages_of(db, session_id) if m["role"] == "assistant")
 
 
-def escalate(db, client, headers) -> dict:
-    """Ask a dosing question and return the escalation row it created."""
-    ask(client, headers, "Mujhe kitni dose leni chahiye?")
+def escalate(db, client, headers, pharmacy_id: str | None = None) -> dict:
+    """Ask a dosing question (optionally at a pharmacy) and return the escalation row it created."""
+    body = {"pharmacyId": pharmacy_id} if pharmacy_id else {}
+    ask(client, headers, "Mujhe kitni dose leni chahiye?", **body)
     return db.rows("escalations")[-1]
+
+
+def vendor_with_pharmacy(db, make_user, name: str = "Sara") -> tuple[str, dict, str]:
+    """A vendor who owns one pharmacy: (vendor_id, headers, pharmacy_id)."""
+    vendor_id, headers = make_user("vendor", name=name)
+    pharmacy = db.seed("pharmacies", vendor_id=vendor_id, name=f"{name} Pharmacy")
+    return vendor_id, headers, pharmacy["id"]
 
 
 # ---------- auth on every route ----------
@@ -338,8 +346,8 @@ def test_customer_cannot_use_escalations(client, db, make_user):
 
 def test_list_escalations_shows_first_name_and_sources(client, db, make_user):
     _, customer = make_user(name="Ali Khan")
-    _, vendor = make_user("vendor", name="Sara")
-    esc = escalate(db, client, customer)
+    _, vendor, pharmacy_id = vendor_with_pharmacy(db, make_user)
+    esc = escalate(db, client, customer, pharmacy_id)
     cited = [{"n": 1, "drug": "paracetamol", "section": "Dosage", "url": "https://x.test"}]
     next(m for m in db.rows("chat_messages") if m["id"] == esc["message_id"])["citations"] = cited
 
@@ -359,8 +367,8 @@ def test_list_escalations_shows_first_name_and_sources(client, db, make_user):
 
 def test_reply_answers_and_adds_pharmacist_message(client, db, make_user):
     customer_id, customer = make_user()
-    vendor_id, vendor = make_user("vendor", name="Sara")
-    esc = escalate(db, client, customer)
+    vendor_id, vendor, pharmacy_id = vendor_with_pharmacy(db, make_user)
+    esc = escalate(db, client, customer, pharmacy_id)
 
     res = client.post(f"/escalations/{esc['id']}/reply", json=REPLY, headers=vendor)
 
@@ -379,9 +387,9 @@ def test_reply_answers_and_adds_pharmacist_message(client, db, make_user):
 
 def test_second_reply_returns_409(client, db, make_user):
     _, customer = make_user()
-    _, vendor = make_user("vendor")
+    _, vendor, pharmacy_id = vendor_with_pharmacy(db, make_user)
     _, admin = make_user("admin")
-    esc = escalate(db, client, customer)
+    esc = escalate(db, client, customer, pharmacy_id)
     url = f"/escalations/{esc['id']}/reply"
     client.post(url, json=REPLY, headers=vendor)
 

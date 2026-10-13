@@ -171,6 +171,11 @@ class _Query:
         self.filters.append(lambda r: r.get(column) in allowed)
         return self
 
+    def gte(self, column: str, value) -> "_Query":
+        # ISO timestamps compare correctly as strings.
+        self.filters.append(lambda r: r.get(column) is not None and str(r[column]) >= str(value))
+        return self
+
     def order(self, column: str, desc: bool = False) -> "_Query":
         self.order_by.append((column, desc))
         return self
