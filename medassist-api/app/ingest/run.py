@@ -2,7 +2,8 @@
 
 Run with: python -m app.ingest.run <command>
   drug-list   build data/drugs.txt from the shop's medicines table (read-only)
-  download    one FDA label per drug -> data/raw/, data/missing.txt  [--force] [--limit N]
+  download    one FDA label per drug -> data/raw/, data/missing.txt
+              [--force] [--limit N] [--no-key]
   chunk       data/raw/*.json -> data/chunks/chunks.jsonl, data/chunk_report.md
 """
 
@@ -29,8 +30,8 @@ async def _drug_list() -> None:
 async def _download(args: argparse.Namespace) -> None:
     from app.ingest.openfda import run
 
-    key = get_settings().openfda_api_key
-    print(f"OPENFDA_API_KEY: {'set' if key else 'not set (1000 requests/day limit)'}")
+    key = None if args.no_key else get_settings().openfda_api_key
+    print(f"OPENFDA_API_KEY: {'set' if key else 'not used (1000 requests/day limit)'}")
     r = await run(
         api_key=key.get_secret_value() if key else None, force=args.force, limit=args.limit
     )
@@ -63,6 +64,9 @@ def main() -> None:
     parser.add_argument("command", choices=sorted(COMMANDS))
     parser.add_argument("--force", action="store_true", help="download: fetch again even if saved")
     parser.add_argument("--limit", type=int, help="download: only the first N drugs")
+    parser.add_argument(
+        "--no-key", action="store_true", help="download: ignore OPENFDA_API_KEY (e.g. a bad key)"
+    )
     args = parser.parse_args()
     asyncio.run(COMMANDS[args.command](args))
 

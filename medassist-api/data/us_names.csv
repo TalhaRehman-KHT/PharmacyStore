@@ -15,14 +15,14 @@ sulphamethoxazole,sulfamethoxazole
 clavulanic acid,clavulanate
 glyceryl trinitrate,nitroglycerin
 beclometasone,beclomethasone
-colecalciferol,cholecalciferol
+colecalciferol,vitamin d
 oestradiol,estradiol
 isoprenaline,isoproterenol
 thyroxine,levothyroxine
 orciprenaline,metaproterenol
 phenobarbitone,phenobarbital
 mesalazine,mesalamine
-chlorphenamine,chlorpheniramine
+chlorphenamine,chlorpheniramine maleate
 aciclovir,acyclovir
 valaciclovir,valacyclovir
 sodium cromoglicate,cromolyn sodium
@@ -30,3 +30,6 @@ dexamfetamine,dextroamphetamine
 methylthioninium chloride,methylene blue
 sulphasalazine,sulfasalazine
 ergometrine,ergonovine
+bisoprolol,bisoprolol fumarate
+chlorpheniramine,chlorpheniramine maleate
+cholecalciferol,vitamin d

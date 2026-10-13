@@ -126,3 +126,13 @@ async def test_api_key_is_sent_but_never_saved(tmp_path):
 
     assert keys == ["secret-test-key"]
     assert "secret-test-key" not in (tmp_path / "ibuprofen.json").read_text(encoding="utf-8")
+
+
+async def test_error_message_never_contains_the_key(tmp_path):
+    async with mock_client(lambda req: httpx.Response(500)) as client:
+        with pytest.raises(httpx.HTTPStatusError) as err:
+            await download(
+                client, ["ibuprofen"], tmp_path, delay=0, retry_wait=0, api_key="secret-test-key"
+            )
+
+    assert "secret-test-key" not in str(err.value)

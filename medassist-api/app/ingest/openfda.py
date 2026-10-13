@@ -108,7 +108,11 @@ async def search(
             res = await client.get(LABEL_URL, params=params)
             if res.status_code == 404:
                 return []
-            res.raise_for_status()
+            if res.is_error:
+                # Our own message: httpx's default one contains the full URL, including api_key.
+                raise httpx.HTTPStatusError(
+                    f"openFDA {res.status_code} for {query!r}", request=res.request, response=res
+                )
             return res.json().get("results", [])
     return []  # not reached: tenacity either returns above or re-raises
 
