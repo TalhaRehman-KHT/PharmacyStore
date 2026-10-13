@@ -20,6 +20,7 @@ ROUTES = [
     ("post", f"/messages/{SID}/feedback", {"rating": 1}),
     ("get", "/escalations", None),
     ("post", f"/escalations/{SID}/reply", {"reply": "Take it after food, twice a day."}),
+    ("get", "/insights", None),
 ]
 REPLY = {"reply": "Please take it after food, twice a day."}
 
