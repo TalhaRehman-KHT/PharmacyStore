@@ -67,7 +67,7 @@ def test_every_route_needs_a_token(client, method, path, body):
     res = client.request(method, path, json=body)
 
     assert res.status_code == 401
-    assert res.json() == {"status": 401, "message": "Missing bearer token"}
+    assert res.json() == {"status": 401, "message": "Missing X-User-Id header"}
 
 
 # ---------- /ask ----------

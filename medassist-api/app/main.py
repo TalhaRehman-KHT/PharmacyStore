@@ -29,6 +29,10 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     app.state.db = await db_client.create_db(settings)
     logger.info("MedAssist API %s started (env=%s)", settings.app_version, settings.app_env)
+    if settings.auth_mode == "app_user_id":
+        logger.warning(
+            "auth_mode=app_user_id: user id is trusted from the client (same level as the main app)"
+        )
     yield
 
 
@@ -53,7 +57,7 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
-        allow_headers=["*"],
+        allow_headers=["X-User-Id", "Content-Type", "Authorization"],
     )
 
     @app.exception_handler(StarletteHTTPException)

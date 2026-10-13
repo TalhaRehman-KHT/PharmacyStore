@@ -1,4 +1,7 @@
-"""Auth through the app: tokens signed with the test secret, roles read from public.users (fake)."""
+"""Auth in supabase mode: tokens signed with the test secret, roles read from public.users (fake).
+
+The default mode (app_user_id) is tested in test_auth_user_id.py.
+"""
 
 from uuid import uuid4
 
@@ -15,6 +18,11 @@ FORBIDDEN = {"status": 403, "message": "Pharmacist access required"}
 SESSIONS = "/sessions"
 ESCALATIONS = "/escalations"
 REPLY = {"reply": "x" * 20}
+
+
+@pytest.fixture(autouse=True)
+def _supabase(supabase_mode):
+    """Every test in this file runs in supabase (JWT) mode."""
 
 
 def test_no_header_returns_401(client):
@@ -74,7 +82,7 @@ def test_health_needs_no_token(client):
 # ---------- roles (read from public.users, never from the token) ----------
 
 
-@pytest.mark.parametrize("role", ["user", "doctor"])
+@pytest.mark.parametrize("role", ["user"])
 def test_customer_roles_on_escalations_return_403(client, make_user, role):
     _, headers = make_user(role)
 
@@ -101,7 +109,7 @@ def test_inactive_staff_on_escalations_returns_403(client, make_user, role):
     assert res.json() == FORBIDDEN
 
 
-@pytest.mark.parametrize("role", ["vendor", "admin"])
+@pytest.mark.parametrize("role", ["vendor", "admin", "doctor"])
 def test_active_staff_on_escalations_returns_200(client, make_user, role):
     _, headers = make_user(role)
 

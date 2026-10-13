@@ -62,12 +62,24 @@ def client(monkeypatch, db):
 
 
 @pytest.fixture
+def supabase_mode(monkeypatch):
+    """Run a test with AUTH_MODE=supabase (JWT). Request it before `client`."""
+    monkeypatch.setenv("AUTH_MODE", "supabase")
+    config.get_settings.cache_clear()
+    yield
+    config.get_settings.cache_clear()
+
+
+@pytest.fixture
 def make_user(db):
-    """Seed a public.users row and return (user_id, auth headers): make_user("vendor")."""
+    """Seed a public.users row and return (user_id, auth headers): make_user("vendor").
+
+    The headers work in both auth modes: X-User-Id (app_user_id) and a bearer token (supabase).
+    """
 
     def _make(role: str = "user", name: str = "Ali Khan", is_active: bool = True):
         row = db.seed("users", name=name, role=role, is_active=is_active)
-        return row["id"], bearer(make_token(row["id"]))
+        return row["id"], {**bearer(make_token(row["id"])), "X-User-Id": row["id"]}
 
     return _make
 

@@ -9,7 +9,6 @@ import pytest
 
 from app.errors import NotFound
 from app.repositories.messages import get_messages
-from tests.conftest import bearer, make_token
 
 
 def _session(db, user_id: str) -> str:
@@ -132,12 +131,12 @@ async def test_query_count_does_not_grow_with_messages(db):
 # ---------- route: GET /sessions/{id}/messages ----------
 
 
-def test_route_returns_camel_case_for_owner(client, db):
-    user = uuid4()
-    session_id = _session(db, str(user))
-    _turn(db, session_id, str(user), 1)
+def test_route_returns_camel_case_for_owner(client, db, make_user):
+    user, headers = make_user()
+    session_id = _session(db, user)
+    _turn(db, session_id, user, 1)
 
-    res = client.get(f"/sessions/{session_id}/messages", headers=bearer(make_token(user)))
+    res = client.get(f"/sessions/{session_id}/messages", headers=headers)
 
     assert res.status_code == 200
     question, answer = res.json()
@@ -146,10 +145,11 @@ def test_route_returns_camel_case_for_owner(client, db):
     assert answer["meta"]["sessionId"] == session_id
 
 
-def test_route_returns_404_for_other_user(client, db):
+def test_route_returns_404_for_other_user(client, db, make_user):
     session_id = _session(db, str(uuid4()))
+    _, headers = make_user()
 
-    res = client.get(f"/sessions/{session_id}/messages", headers=bearer(make_token()))
+    res = client.get(f"/sessions/{session_id}/messages", headers=headers)
 
     assert res.status_code == 404
     assert res.json() == {"status": 404, "message": "Session not found"}

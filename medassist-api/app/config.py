@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     supabase_service_key: SecretStr
     supabase_jwt_secret: SecretStr | None = None
 
+    # app_user_id: trust the X-User-Id header like the main app does (see docs/AUTH_MODE.md).
+    # supabase: verify a Supabase JWT (kept for when the main app gets real login).
+    auth_mode: Literal["app_user_id", "supabase"] = "app_user_id"
+    # Staff roles in public.users. All-access roles see every escalation; vendor-scoped
+    # roles only their own pharmacy's (scoping itself is R10).
+    staff_all_access_roles: list[str] = ["admin", "doctor"]
+    staff_vendor_roles: list[str] = ["vendor"]
+
     groq_api_key: SecretStr
     gemini_api_key: SecretStr
     openfda_api_key: SecretStr | None = None
