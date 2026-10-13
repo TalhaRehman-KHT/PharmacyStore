@@ -2,7 +2,7 @@
  * HTTP client for the MedAssist FastAPI service (medassist-api).
  *
  * Every request sends `X-User-Id` (the logged-in user's id, same trust model as the main app;
- * see medassist-api/docs/AUTH_MODE.md). Failures are thrown / reported as ApiError.
+ * see medassist-api/docs/ARCHITECTURE.md section 4). Failures are thrown / reported as ApiError.
  *
  * @typedef {import("./client.js").MedAssistClient} MedAssistClient
  * @typedef {import("../types.js").ApiError} ApiError

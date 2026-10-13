@@ -1,7 +1,7 @@
 -- 006_hybrid_search.sql
 -- Hybrid search over drug_chunks: vector search (meaning) + keyword search (exact words),
 -- merged with Reciprocal Rank Fusion (RRF, k = 60). Run after 002/003. Safe to run again.
--- Why it works this way: notes/hybrid_search.md.
+-- Why it works this way: docs/LEARNING.md "Hybrid search".
 --
 -- Called by the backend only (app/rag/search.py, service role) through the hybrid_search RPC.
 -- An empty query_text gives no keyword hits, so the function is then pure vector search

@@ -1,6 +1,6 @@
 """Chunker. Scaffold tests pass now; clean_text / chunk_label tests FAIL until R15 writes them.
 
-Contract (prompts/run/chunker-guide.md): header line on every chunk, at most MAX_CHARS per chunk,
+Contract (prompts/archive/chunker-guide.md) header line on every chunk, at most MAX_CHARS per chunk,
 ~BODY_CHARS of body with ~OVERLAP_CHARS overlap, boxed_warning first then SECTION_MAP order,
 no empty chunks, no chunk ending in the middle of a word.
 """

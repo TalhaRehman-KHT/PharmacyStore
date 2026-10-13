@@ -44,7 +44,7 @@ async def add_message(
 async def get_messages(db: AsyncClient, user_id: UUID, session_id: UUID) -> list[ChatMessageOut]:
     """Messages of one of the caller's sessions, oldest first.
 
-    At most 4 queries, whatever the number of messages (see notes/get_messages.md):
+    At most 4 queries, whatever the number of messages (see docs/LEARNING.md "get_messages"):
     1. ownership check, 2. messages, 3. the caller's feedback, 4. escalations.
     Another user's session raises NotFound, exactly like a session that does not exist.
     """
