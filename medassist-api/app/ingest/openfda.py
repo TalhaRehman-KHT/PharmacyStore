@@ -25,6 +25,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from app.http_retry import is_retryable
 from app.paths import DATA_DIR
 
 LABEL_URL = "https://api.fda.gov/drug/label.json"
@@ -83,14 +84,6 @@ def pick_label(results: list[dict], drug: str) -> dict | None:
     return max(results, key=lambda r: _score(r, drug)) if results else None
 
 
-def _retryable(exc: BaseException) -> bool:
-    """Retry on network errors, 429 (rate limit) and 5xx; never on 404 (= no match)."""
-    if isinstance(exc, httpx.HTTPStatusError):
-        code = exc.response.status_code
-        return code == 429 or code >= 500
-    return isinstance(exc, httpx.TransportError)
-
-
 async def search(
     client: httpx.AsyncClient, query: str, api_key: str | None, *, retry_wait: float = 2.0
 ) -> list[dict]:
@@ -99,7 +92,7 @@ async def search(
     if api_key:
         params["api_key"] = api_key
     async for attempt in AsyncRetrying(
-        retry=retry_if_exception(_retryable),
+        retry=retry_if_exception(is_retryable),  # a 404 (= no match) is never retried
         stop=stop_after_attempt(4),
         wait=wait_exponential(multiplier=retry_wait, max=30),
         reraise=True,

@@ -59,19 +59,13 @@ async def _embed_load(args: argparse.Namespace) -> None:
     import httpx
 
     from app.ingest.load import CHUNKS_FILE, load, read_chunks
-    from app.rag.embed import Embedder
+    from app.rag.embed import embedder_from_settings
 
     settings = get_settings()
     docs = read_chunks(CHUNKS_FILE, args.limit)
     db = None if args.dry_run else await create_db(settings)
     async with httpx.AsyncClient(timeout=60) as client:
-        embedder = Embedder(
-            client,
-            settings.gemini_api_key.get_secret_value(),
-            settings.gemini_embed_model,
-            settings.embed_dim,
-            delay=args.delay,
-        )
+        embedder = embedder_from_settings(client, settings, delay=args.delay)
         r = await load(db, embedder, docs, dry_run=args.dry_run)
     print(
         f"model: {settings.gemini_embed_model} ({settings.embed_dim} dims) | "

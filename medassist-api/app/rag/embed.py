@@ -22,6 +22,8 @@ from pathlib import Path
 import httpx
 from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential
 
+from app.config import Settings
+from app.http_retry import is_retryable
 from app.paths import DATA_DIR
 
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents"
@@ -66,14 +68,6 @@ def _daily_quota_reset(res: httpx.Response) -> float | None:
     delay = next((str(d["retryDelay"]) for d in details if "retryDelay" in d), "")
     match = re.fullmatch(r"([\d.]+)s", delay)
     return float(match.group(1)) if match else 0.0
-
-
-def _retryable(exc: BaseException) -> bool:
-    """Retry on network errors, 429 (rate limit / quota per minute) and 5xx."""
-    if isinstance(exc, httpx.HTTPStatusError):
-        code = exc.response.status_code
-        return code == 429 or code >= 500
-    return isinstance(exc, httpx.TransportError)
 
 
 class Embedder:
@@ -147,7 +141,7 @@ class Embedder:
         }
         url = API_URL.format(model=self.model)
         async for attempt in AsyncRetrying(
-            retry=retry_if_exception(_retryable),
+            retry=retry_if_exception(is_retryable),
             stop=stop_after_attempt(8),
             wait=wait_exponential(multiplier=self.retry_wait, max=60),
             reraise=True,
@@ -194,3 +188,14 @@ class Embedder:
             return  # never cache a vector of the wrong size
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(vector), encoding="utf-8")
+
+
+def embedder_from_settings(client: httpx.AsyncClient, settings: Settings, **kwargs) -> Embedder:
+    """An Embedder with key, model and dim from settings; kwargs (cache_dir, delay) pass through."""
+    return Embedder(
+        client,
+        settings.gemini_api_key.get_secret_value(),
+        settings.gemini_embed_model,
+        settings.embed_dim,
+        **kwargs,
+    )

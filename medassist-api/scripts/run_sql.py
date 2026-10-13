@@ -20,6 +20,8 @@ from pathlib import Path
 
 import psycopg
 
+from scripts._env import load_dotenv
+
 ROOT = Path(__file__).resolve().parent.parent
 SHOP_TABLES = [
     "users", "otps", "pharmacies", "medicines", "medicine_batches", "orders", "order_items",
@@ -58,16 +60,6 @@ def check(sql: str) -> list[str]:
             snippet = " ".join(m.group(0).split())[:90]
             problems.append(f"{why}: {snippet}")
     return problems
-
-
-def load_dotenv(path: Path) -> None:
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, _, v = line.partition("=")
-            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
 def main() -> int:

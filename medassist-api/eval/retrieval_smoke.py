@@ -191,20 +191,14 @@ async def main() -> None:
 
     from app.config import get_settings
     from app.db.client import create_db
-    from app.rag.embed import Embedder
+    from app.rag.embed import embedder_from_settings
     from app.rag.rerank import Reranker
 
     settings = get_settings()
     questions = read_questions()
     db = await create_db(settings)
     async with httpx.AsyncClient(timeout=60) as client:
-        embedder = Embedder(
-            client,
-            settings.gemini_api_key.get_secret_value(),
-            settings.gemini_embed_model,
-            settings.embed_dim,
-            cache_dir=None,
-        )
+        embedder = embedder_from_settings(client, settings, cache_dir=None)
         vectors = await query_vectors(
             questions, embedder.embed_query, settings.gemini_embed_model, settings.embed_dim
         )
