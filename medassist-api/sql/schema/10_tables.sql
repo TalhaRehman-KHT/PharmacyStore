@@ -13,6 +13,21 @@ create table "public"."alerts" (
   constraint "alerts_pkey" PRIMARY KEY (id)
 );
 
+create table "public"."auth_sessions" (
+  "id" uuid default gen_random_uuid() not null,
+  "user_id" uuid not null,
+  "token_hash" text not null,
+  "user_agent" text,
+  "ip" text,
+  "created_at" timestamp with time zone default now() not null,
+  "last_used_at" timestamp with time zone,
+  "expires_at" timestamp with time zone not null,
+  "revoked_at" timestamp with time zone,
+  "replaced_by" uuid,
+  constraint "auth_sessions_pkey" PRIMARY KEY (id),
+  constraint "auth_sessions_token_hash_key" UNIQUE (token_hash)
+);
+
 create table "public"."cart_items" (
   "id" uuid default gen_random_uuid() not null,
   "cart_id" uuid not null,

@@ -3,6 +3,8 @@
 
 alter table "public"."alerts" add constraint "alerts_pharmacy_id_fkey" FOREIGN KEY (pharmacy_id) REFERENCES public.pharmacies(id) ON DELETE CASCADE;
 alter table "public"."alerts" add constraint "alerts_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+alter table "public"."auth_sessions" add constraint "auth_sessions_replaced_by_fkey" FOREIGN KEY (replaced_by) REFERENCES public.auth_sessions(id) ON DELETE SET NULL;
+alter table "public"."auth_sessions" add constraint "auth_sessions_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 alter table "public"."cart_items" add constraint "cart_items_batch_id_fkey" FOREIGN KEY (batch_id) REFERENCES public.medicine_batches(id) ON DELETE CASCADE;
 alter table "public"."cart_items" add constraint "cart_items_cart_id_fkey" FOREIGN KEY (cart_id) REFERENCES public.carts(id) ON DELETE CASCADE;
 alter table "public"."cart_items" add constraint "cart_items_medicine_id_fkey" FOREIGN KEY (medicine_id) REFERENCES public.medicines(id) ON DELETE SET NULL;
