@@ -4,6 +4,8 @@ from uuid import UUID
 
 from supabase import AsyncClient
 
+from app.repositories.mappers import message_out
+from app.repositories.sessions import assert_owned
 from app.schemas.chat import ChatMessageOut, Citation, ProductCard
 from app.schemas.common import Role, Route, Variant
 
@@ -42,14 +44,49 @@ async def add_message(
 async def get_messages(db: AsyncClient, user_id: UUID, session_id: UUID) -> list[ChatMessageOut]:
     """Messages of one of the caller's sessions, oldest first.
 
-    TODO(Talha): written by hand. Contract (tests/test_messages_repo.py):
-    - Confirm the session belongs to user_id, else raise app.errors.NotFound
-      (sessions.assert_owned does this).
-    - Fetch the session's messages ordered by created_at ascending.
-    - Attach this user's feedback rating (feedback.rating where user_id = caller) per message.
-    - Attach escalation status per message with ONE extra query for all message ids
-      (escalations where message_id in (...)), so the query count does not grow with the
-      number of messages.
-    - Build each item with app.repositories.mappers.message_out(row, rating, escalation).
+    At most 4 queries, whatever the number of messages (see notes/get_messages.md):
+    1. ownership check, 2. messages, 3. the caller's feedback, 4. escalations.
+    Another user's session raises NotFound, exactly like a session that does not exist.
     """
-    raise NotImplementedError("get_messages is written by hand (see docstring)")
+    # 1. Ownership. The service key skips RLS, so this check is what keeps chats private.
+    await assert_owned(db, user_id, session_id)
+
+    # 2. All messages of the session, oldest first.
+    res = await (
+        db.table("chat_messages")
+        .select("id, session_id, role, content, route, citations, products, latency_ms, created_at")
+        .eq("session_id", str(session_id))
+        .order("created_at")
+        .execute()
+    )
+    rows = res.data
+
+    # Only assistant answers can be rated or escalated.
+    answer_ids = [row["id"] for row in rows if row["role"] == "assistant"]
+    ratings: dict[str, int] = {}
+    escalations: dict[str, dict] = {}
+
+    if answer_ids:
+        # 3. The caller's ratings for all answers in ONE query (not one query per message).
+        res = await (
+            db.table("feedback")
+            .select("message_id, rating")
+            .eq("user_id", str(user_id))
+            .in_("message_id", answer_ids)
+            .execute()
+        )
+        ratings = {row["message_id"]: row["rating"] for row in res.data}
+
+        # 4. Escalations for all answers in ONE query.
+        res = await (
+            db.table("escalations")
+            .select("message_id, reason, status")
+            .in_("message_id", answer_ids)
+            .execute()
+        )
+        escalations = {row["message_id"]: row for row in res.data}
+
+    # Join in Python: look up each message's rating and escalation by id.
+    return [
+        message_out(row, ratings.get(row["id"]), escalations.get(row["id"])) for row in rows
+    ]
