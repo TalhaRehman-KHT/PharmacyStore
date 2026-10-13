@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     groq_fast_model: str = "llama-3.1-8b-instant"
     groq_answer_model: str = "llama-3.3-70b-versatile"
-    gemini_embed_model: str = "text-embedding-004"
+    gemini_embed_model: str = "gemini-embedding-001"
     gemini_fallback_model: str = "gemini-2.0-flash"
     embed_dim: int = 768
 
