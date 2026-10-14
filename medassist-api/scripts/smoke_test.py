@@ -144,7 +144,8 @@ async def run(http: httpx.AsyncClient, db: AsyncClient, report: Report) -> None:
         return res.json().get("version")
 
     async def ask_stream():
-        body = {"question": f"{PREFIX} What are the side effects of paracetamol?"}
+        # A knowledge question about a LOADED drug (amoxicillin): must come back with citations.
+        body = {"question": f"{PREFIX} What are the side effects of amoxicillin?"}
         res = await http.post("/ask/stream", json=body, headers=as_customer)
         expect(res.status_code == 200, f"HTTP {res.status_code}: {res.text[:120]}")
         events = parse_sse(res.text)
@@ -154,7 +155,12 @@ async def run(http: httpx.AsyncClient, db: AsyncClient, report: Report) -> None:
         expect({"citations", "meta"} <= set(names), f"events {names}")
         meta = next(d for n, d in events if n == "meta")
         state["session_id"], state["answer_id"] = meta["sessionId"], meta["messageId"]
-        return f"{names.count('token')} tokens, route={meta.get('route')}"
+        citations = next(d for n, d in events if n == "citations")
+        expect(meta.get("route") == "knowledge", f"route={meta.get('route')}")
+        expect(len(citations) >= 1, "no citations")
+        drugs = sorted({c["drug"] for c in citations})
+        return (f"{names.count('token')} tokens, route={meta.get('route')}, "
+                f"{len(citations)} citation(s) {drugs}, {meta.get('latencyMs')} ms")
 
     async def ask_dose():
         body = {"question": f"{PREFIX} Mujhe kitni dose leni chahiye?",

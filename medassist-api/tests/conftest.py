@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import config
 from tests.fakes import FakeSupabase
+from tests.fakes.rag import FakeRag
 
 TEST_ENV = {
     "APP_ENV": "dev",
@@ -47,9 +48,17 @@ def db() -> FakeSupabase:
 
 
 @pytest.fixture
-def client(monkeypatch, db):
-    """TestClient with the lifespan running; the app's Supabase client is the in-memory `db`."""
+def rag(db) -> FakeRag:
+    """Fake embedder / reranker / answer LLM on the in-memory `db` (set rows / reply per test)."""
+    return FakeRag(db)
+
+
+@pytest.fixture
+def client(monkeypatch, db, rag):
+    """TestClient with the lifespan running; the app's Supabase client is the in-memory `db`
+    and the RAG dependencies are `rag`'s fakes (no network)."""
     from app import main
+    from app.api.deps import get_rag
     from app.db import client as db_client
 
     async def fake_create_db(_settings):
@@ -57,7 +66,9 @@ def client(monkeypatch, db):
 
     monkeypatch.setattr(db_client, "create_db", fake_create_db)
     config.get_settings.cache_clear()
-    with TestClient(main.create_app()) as test_client:
+    app = main.create_app()
+    app.dependency_overrides[get_rag] = rag.deps
+    with TestClient(app) as test_client:
         yield test_client
 
 

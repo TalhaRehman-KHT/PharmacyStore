@@ -22,6 +22,7 @@ async def add_message(
     products: list[ProductCard] | None = None,
     variant: Variant | None = None,
     latency_ms: int | None = None,
+    tokens: int | None = None,
 ) -> dict:
     """Insert one message and return the stored row."""
     row = {
@@ -36,6 +37,7 @@ async def add_message(
         ],
         "variant": variant,
         "latency_ms": latency_ms,
+        "tokens": tokens,
     }
     res = await db.table("chat_messages").insert(row).execute()
     return res.data[0]

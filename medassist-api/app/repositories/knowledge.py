@@ -25,6 +25,19 @@ async def list_documents(db) -> list[dict]:
     return res.data or []
 
 
+async def source_urls(db, drug_names: list[str]) -> dict[str, str]:
+    """{generic_name: source_url} for these drugs, in one request (no URL = left out)."""
+    if not drug_names:
+        return {}
+    res = await (
+        db.table("drug_documents")
+        .select("generic_name, source_url")
+        .in_("generic_name", sorted(set(drug_names)))
+        .execute()
+    )
+    return {r["generic_name"]: r["source_url"] for r in res.data or [] if r.get("source_url")}
+
+
 async def chunk_inventory(db) -> list[dict]:
     """document_id + metadata of every drug_chunks row (no vectors), fetched page by page."""
     rows: list[dict] = []

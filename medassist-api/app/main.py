@@ -4,6 +4,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,7 @@ from app.api import routes
 from app.config import get_settings
 from app.db import client as db_client
 from app.errors import Conflict, NotFound
+from app.rag.deps import create_rag_deps
 from app.rate_limit import limiter, retry_after_seconds
 
 logging.basicConfig(
@@ -28,12 +30,17 @@ async def lifespan(app: FastAPI):
     """Create shared resources once at startup."""
     settings = get_settings()
     app.state.db = await db_client.create_db(settings)
+    http = httpx.AsyncClient(timeout=30)  # query embeddings (Gemini)
+    app.state.rag = create_rag_deps(app.state.db, settings, http)
     logger.info("MedAssist API %s started (env=%s)", settings.app_version, settings.app_env)
     if settings.auth_mode == "app_user_id":
         logger.warning(
             "auth_mode=app_user_id: user id is trusted from the client (same level as the main app)"
         )
-    yield
+    try:
+        yield
+    finally:
+        await http.aclose()
 
 
 def _error(

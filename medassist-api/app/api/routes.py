@@ -10,7 +10,6 @@ absent in JSON, matching the client's optional properties.
 # /ask, /ask/stream, /feedback, /escalations
 import json
 import logging
-import re
 from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
@@ -18,8 +17,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
-from app.api.deps import get_repos
+from app.api.deps import get_rag, get_repos
 from app.errors import Conflict, NotFound
+from app.rag.deps import RagDeps
 from app.rate_limit import ask_limit
 from app.repositories import Repos
 from app.repositories.escalations import EscalationScope
@@ -43,6 +43,8 @@ _OUT = {"response_model_by_alias": True, "response_model_exclude_none": True}
 User = Annotated[CurrentUser, Depends(get_current_user)]
 Staff = Annotated[CurrentUser, Depends(require_staff)]
 ReposDep = Annotated[Repos, Depends(get_repos)]
+RagDep = Annotated[RagDeps, Depends(get_rag)]
+BUILT_VARIANTS: set[Variant] = {"naive"}  # "rewrite" and "agent" come with the LangGraph stages
 
 
 async def get_scope(staff: Staff, repos: ReposDep) -> EscalationScope:
@@ -58,6 +60,13 @@ async def _check_pharmacy(repos: Repos, body: AskRequest) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "pharmacyId: unknown pharmacy")
 
 
+def _check_variant(variant: Variant) -> None:
+    if variant not in BUILT_VARIANTS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, f"variant: '{variant}' is not available yet"
+        )
+
+
 @router.post("/ask", response_model=AskResponse, tags=["chat"], **_OUT, **_ASK)
 @ask_limit
 async def ask(
@@ -65,40 +74,43 @@ async def ask(
     body: AskRequest,
     user: User,
     repos: ReposDep,
-    variant: Annotated[Variant, Query()] = "agent",
+    rag: RagDep,
+    variant: Annotated[Variant, Query()] = "naive",
 ) -> AskResponse:
     """Answer a question in one response (variant picks the pipeline, for evaluation)."""
+    _check_variant(variant)
     await _check_pharmacy(repos, body)
     session_id = await chat.resolve_session(repos, user.id, body)
-    return await chat.answer_question(repos, user.id, session_id, body, variant)
+    return await chat.answer_question(repos, rag, user.id, session_id, body, variant)
 
 
 def _event(name: str, data) -> ServerSentEvent:
     return ServerSentEvent(event=name, data=json.dumps(data, separators=(",", ":")))
 
 
-def _words(text: str) -> list[str]:
-    """Split into word pieces that keep their trailing whitespace, so they join back exactly."""
-    return re.findall(r"\S+\s*", text)
-
-
 @router.post("/ask/stream", response_class=EventSourceResponse, tags=["chat"], **_ASK)
 @ask_limit
 async def ask_stream(
-    request: Request, body: AskRequest, user: User, repos: ReposDep
+    request: Request, body: AskRequest, user: User, repos: ReposDep, rag: RagDep
 ) -> EventSourceResponse:
     """Stream an answer as SSE.
 
-    Events, in order: `token` (data: {"text": piece}, repeated), `citations` (data: Citation[]),
-    `meta` (data: AnswerMeta), `done` (data: {}). On failure: `error` (data: {status, message}).
+    Events, in order: `token` (data: {"text": piece}, repeated, as the model writes),
+    `citations` (data: Citation[]), `meta` (data: AnswerMeta), `done` (data: {}).
+    On failure: `error` (data: {status, message}), also after some tokens were sent.
     Session ownership and pharmacyId are checked before the stream starts (plain HTTP errors).
     """
     await _check_pharmacy(repos, body)
     session_id = await chat.resolve_session(repos, user.id, body)
 
     async def events() -> AsyncIterator[ServerSentEvent]:
+        result: AskResponse | None = None
         try:
-            result = await chat.answer_question(repos, user.id, session_id, body)
+            async for item in chat.answer_stream(repos, rag, user.id, session_id, body):
+                if isinstance(item, AskResponse):
+                    result = item
+                else:
+                    yield _event("token", {"text": item})
         except (NotFound, Conflict) as exc:
             code = 404 if isinstance(exc, NotFound) else 409
             yield _event("error", {"status": code, "message": exc.message})
@@ -107,8 +119,9 @@ async def ask_stream(
             logger.exception("Stream failed for session %s", session_id)
             yield _event("error", {"status": 500, "message": "Internal server error"})
             return
-        for piece in _words(result.answer):
-            yield _event("token", {"text": piece})
+        if result is None:
+            yield _event("error", {"status": 500, "message": "Internal server error"})
+            return
         yield _event(
             "citations", [c.model_dump(mode="json", by_alias=True) for c in result.citations]
         )

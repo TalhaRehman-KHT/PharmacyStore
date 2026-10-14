@@ -1,12 +1,16 @@
 """One question -> stored session, user message, assistant message and (maybe) escalation."""
 
+import re
 import time
+from collections.abc import AsyncIterator
 from uuid import UUID
 
+from app.baseline import naive
+from app.rag.deps import RagDeps
 from app.repositories import Repos
 from app.schemas.chat import AnswerMeta, AskRequest, AskResponse
 from app.schemas.common import Variant
-from app.services import placeholder
+from app.services import precheck
 
 TITLE_LENGTH = 40
 
@@ -24,18 +28,40 @@ async def resolve_session(repos: Repos, user_id: UUID, body: AskRequest) -> UUID
     return session.id
 
 
-async def answer_question(
-    repos: Repos, user_id: UUID, session_id: UUID, body: AskRequest, variant: Variant = "agent"
-) -> AskResponse:
-    """Answer one turn in an already resolved session and persist both messages."""
-    started = time.perf_counter()
+def words(text: str) -> list[str]:
+    """Split into word pieces that keep their trailing whitespace, so they join back exactly."""
+    return re.findall(r"\S+\s*", text)
 
+
+async def answer_stream(
+    repos: Repos,
+    rag: RagDeps,
+    user_id: UUID,
+    session_id: UUID,
+    body: AskRequest,
+    variant: Variant = "naive",
+) -> AsyncIterator[str | AskResponse]:
+    """Answer one turn in an already resolved session: text pieces (str) while the answer is
+    written, then the stored AskResponse. Both messages are persisted."""
+    started = time.perf_counter()
     await repos.add_message(
         session_id=session_id, user_id=user_id, role="user", content=body.question
     )
 
-    # TODO(agent): the LangGraph agent replaces the placeholder (variant selects the pipeline).
-    result = placeholder.answer(body.question)
+    # Keyword pre-check first: risky questions are escalated without retrieval or LLM.
+    reason = precheck.escalation_reason(body.question)
+    result: naive.RagAnswer | None = None
+    if reason is not None:
+        for piece in words(precheck.ESCALATION_TEXT):
+            yield piece
+        result = naive.RagAnswer(precheck.ESCALATION_TEXT, "escalated")
+    else:
+        async for item in naive.answer_stream(body.question, rag):
+            if isinstance(item, naive.RagAnswer):
+                result = item
+            else:
+                yield item
+    assert result is not None  # naive.answer_stream always ends with its RagAnswer
     latency_ms = int((time.perf_counter() - started) * 1000)
 
     message = await repos.add_message(
@@ -44,19 +70,19 @@ async def answer_question(
         role="assistant",
         content=result.text,
         route=result.route,
-        citations=[],
+        citations=result.citations,
         variant=variant,
         latency_ms=latency_ms,
+        tokens=result.tokens,
     )
 
-    escalated = result.escalation_reason is not None
-    if escalated:
+    if reason is not None:
         await repos.create_escalation(
             message_id=message["id"],
             session_id=session_id,
             user_id=user_id,
             question=body.question,
-            reason=result.escalation_reason,
+            reason=reason,
             pharmacy_id=body.pharmacy_id,
         )
 
@@ -64,9 +90,25 @@ async def answer_question(
         message_id=message["id"],
         session_id=session_id,
         route=result.route,
-        escalated=escalated,
-        escalation_reason=result.escalation_reason,
-        escalation_status="pending" if escalated else None,
+        escalated=reason is not None,
+        escalation_reason=reason,
+        escalation_status="pending" if reason else None,
         latency_ms=latency_ms,
+        tokens=result.tokens,
     )
-    return AskResponse(answer=result.text, citations=[], meta=meta)
+    yield AskResponse(answer=result.text, citations=result.citations, meta=meta)
+
+
+async def answer_question(
+    repos: Repos,
+    rag: RagDeps,
+    user_id: UUID,
+    session_id: UUID,
+    body: AskRequest,
+    variant: Variant = "naive",
+) -> AskResponse:
+    """The same turn as answer_stream, returned in one piece (POST /ask)."""
+    async for item in answer_stream(repos, rag, user_id, session_id, body, variant):
+        if isinstance(item, AskResponse):
+            return item
+    raise RuntimeError("answer_stream ended without a response")

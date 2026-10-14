@@ -27,7 +27,7 @@ CLIENT_FIELDS = {
     ],
     AnswerMeta: [
         "messageId", "sessionId", "route", "escalated", "escalationReason", "escalationStatus",
-        "products", "latencyMs",
+        "products", "latencyMs", "tokens",
     ],
     ChatMessageOut: [
         "id", "sessionId", "role", "content", "createdAt", "citations", "meta", "feedback",

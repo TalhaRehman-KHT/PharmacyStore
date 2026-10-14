@@ -39,6 +39,7 @@
  * @property {EscalationStatus} [escalationStatus]
  * @property {ProductCard[]} [products]
  * @property {number} latencyMs
+ * @property {number} [tokens] LLM input + output tokens (absent when no LLM was called)
  */
 
 /**

@@ -35,6 +35,7 @@ def message_out(
             "escalation_status": escalation["status"] if escalation else None,
             "products": row.get("products") or None,
             "latency_ms": row.get("latency_ms") or 0,
+            "tokens": row.get("tokens"),
         }
     return ChatMessageOut.model_validate(data)
 

@@ -55,6 +55,7 @@ class AnswerMeta(CamelModel):
     escalation_status: EscalationStatus | None = None
     products: list[ProductCard] | None = None
     latency_ms: int = Field(ge=0)
+    tokens: int | None = Field(default=None, ge=0)  # LLM input + output tokens (None: no LLM call)
 
 
 class AskResponse(CamelModel):

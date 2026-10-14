@@ -7,7 +7,9 @@ from uuid import uuid4
 
 import pytest
 
-from app.services import chat, placeholder
+from app.baseline import naive
+from app.services import chat, precheck
+from tests.fakes.rag import REPLY
 from tests.unit.api.helpers import ask, messages_of, parse_sse
 
 SID = uuid4()
@@ -46,10 +48,18 @@ def test_ask_creates_session_and_two_messages(client, db, make_user):
 
     assert res.status_code == 200
     body = res.json()
-    assert body["answer"] == placeholder.ANSWER
-    assert body["citations"] == []
+    assert body["answer"] == "".join(REPLY)
+    assert body["citations"] == [
+        {
+            "n": 1,
+            "drug": "acetaminophen",
+            "section": "Warnings",
+            "url": naive.DAILYMED_SEARCH.format(drug="acetaminophen"),
+        }
+    ]
     meta = body["meta"]
     assert meta["route"] == "knowledge"
+    assert meta["tokens"] == 120
     assert meta["escalated"] is False
     assert "escalationStatus" not in meta  # None fields are dropped
     assert isinstance(meta["latencyMs"], int)
@@ -63,8 +73,10 @@ def test_ask_creates_session_and_two_messages(client, db, make_user):
     assert (user_msg["role"], user_msg["content"]) == ("user", question)
     assert bot_msg["role"] == "assistant"
     assert bot_msg["id"] == meta["messageId"]
-    assert (bot_msg["route"], bot_msg["variant"]) == ("knowledge", "agent")
+    assert (bot_msg["route"], bot_msg["variant"]) == ("knowledge", "naive")
     assert bot_msg["latency_ms"] == meta["latencyMs"]
+    assert bot_msg["tokens"] == 120
+    assert bot_msg["citations"] == body["citations"]
 
 
 def test_ask_variant_is_stored(client, db, make_user):
@@ -74,6 +86,17 @@ def test_ask_variant_is_stored(client, db, make_user):
 
     assert res.status_code == 200
     assert db.rows("chat_messages")[-1]["variant"] == "naive"
+
+
+@pytest.mark.parametrize("variant", ["rewrite", "agent"])
+def test_variant_not_built_yet_returns_422(client, db, make_user, variant):
+    _, headers = make_user()
+
+    res = client.post(f"/ask?variant={variant}", json={"question": "hi"}, headers=headers)
+
+    assert res.status_code == 422
+    assert res.json()["message"] == f"variant: '{variant}' is not available yet"
+    assert db.rows("chat_messages") == []
 
 
 def test_ask_reuses_own_session(client, db, make_user):
@@ -101,7 +124,7 @@ def test_ask_with_other_users_session_returns_404(client, db, make_user, path):
     assert len(messages_of(db, alice_session)) == 2  # nothing written into Alice's chat
 
 
-def test_dosing_question_escalates_with_pharmacy(client, db, make_user):
+def test_dosing_question_escalates_with_pharmacy(client, db, make_user, rag):
     user_id, headers = make_user()
     vendor = db.seed("users", name="Vendor", role="vendor", is_active=True)
     pharmacy = db.seed("pharmacies", vendor_id=vendor["id"], name="City Pharmacy")
@@ -114,6 +137,9 @@ def test_dosing_question_escalates_with_pharmacy(client, db, make_user):
     assert meta["escalated"] is True
     assert meta["escalationReason"] == "personal_dosing"
     assert meta["escalationStatus"] == "pending"
+    assert res.json()["answer"] == precheck.ESCALATION_TEXT
+    assert res.json()["citations"] == []
+    assert rag.llms == [] and rag.embedder.calls == []  # no retrieval, no LLM
 
     [esc] = db.rows("escalations")
     assert esc["message_id"] == meta["messageId"]
@@ -189,8 +215,11 @@ def test_stream_event_order_and_camel_case(client, db, make_user):
     assert tokens >= 2
     assert names == ["token"] * tokens + ["citations", "meta", "done"]
 
-    assert "".join(data["text"] for name, data in events if name == "token") == placeholder.ANSWER
-    assert events[-3][1] == []
+    tokens_text = [data["text"] for name, data in events if name == "token"]
+    assert "".join(tokens_text) == "".join(REPLY)
+    # held back until the first [n], then live: the 1st event carries the first two pieces
+    assert tokens_text == [REPLY[0] + REPLY[1], REPLY[2]]
+    assert [c["n"] for c in events[-3][1]] == [1]
     meta = events[-2][1]
     assert {"messageId", "sessionId", "route", "escalated", "latencyMs"} <= set(meta)
     assert not any("_" in key for key in meta)
@@ -204,14 +233,43 @@ def test_stream_failure_sends_error_event(client, make_user, monkeypatch):
 
     async def boom(*_args, **_kwargs):
         raise RuntimeError("model down")
+        yield  # an async generator, like chat.answer_stream
 
-    monkeypatch.setattr(chat, "answer_question", boom)
+    monkeypatch.setattr(chat, "answer_stream", boom)
 
     res = client.post("/ask/stream", json={"question": "hi"}, headers=headers)
 
     assert parse_sse(res.text) == [
         ("error", {"status": 500, "message": "Internal server error"})
     ]
+
+
+def test_llm_failure_after_tokens_sends_error_event(client, db, make_user, rag):
+    _, headers = make_user()
+    rag.error, rag.fail_after = RuntimeError("groq dropped"), 2
+
+    res = client.post("/ask/stream", json={"question": "hi"}, headers=headers)
+
+    events = parse_sse(res.text)
+    assert events[0] == ("token", {"text": REPLY[0] + REPLY[1]})
+    assert events[-1] == ("error", {"status": 500, "message": "Internal server error"})
+    assert [m["role"] for m in db.rows("chat_messages")] == ["user"]  # no half answer stored
+
+
+def test_no_chunks_gives_no_evidence(client, db, make_user, rag):
+    _, headers = make_user()
+    rag.rows = []
+
+    res = client.post("/ask/stream", json={"question": "hi"}, headers=headers)
+
+    events = parse_sse(res.text)
+    text = "".join(data["text"] for name, data in events if name == "token")
+    assert text == naive.NO_EVIDENCE_TEXT
+    assert events[-3] == ("citations", [])
+    assert events[-2][1]["route"] == "no_evidence"
+    assert "tokens" not in events[-2][1]
+    assert rag.llms == []
+    assert db.rows("chat_messages")[-1]["route"] == "no_evidence"
 
 
 # ---------- validation ----------
