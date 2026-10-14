@@ -111,10 +111,14 @@ async def query_vectors(
 # ---------- the two pipelines ----------
 
 
-async def run_pipelines(db, reranker, q: Question, vector: list[float]) -> list[Outcome]:
-    """(a) vector only and (b) hybrid + rerank for one question."""
-    vec_hits = await retrieve(db, reranker, q.question, vector, rerank=False, top_k=K)
-    reranked = await retrieve(db, reranker, q.question, vector, top_k=K)
+async def run_pipelines(
+    db, reranker, q: Question, vector: list[float], model: str | None = None
+) -> list[Outcome]:
+    """(a) vector only and (b) hybrid + rerank for one question. `model` made the query vector."""
+    vec_hits = await retrieve(
+        db, reranker, q.question, vector, rerank=False, top_k=K, embed_model=model
+    )
+    reranked = await retrieve(db, reranker, q.question, vector, top_k=K, embed_model=model)
     return [
         Outcome(q, "vector", first_hit_rank(vec_hits, q), vec_hits[:K]),
         Outcome(q, "hybrid_rerank", first_hit_rank(reranked, q), reranked[:K]),
@@ -214,7 +218,7 @@ async def main() -> None:
     reranker = Reranker()
     outcomes: list[Outcome] = []
     for q, vector in zip(questions, vectors, strict=True):
-        outcomes += await run_pipelines(db, reranker, q, vector)
+        outcomes += await run_pipelines(db, reranker, q, vector, settings.gemini_embed_model)
 
     report = build_report(outcomes, note)
     REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)

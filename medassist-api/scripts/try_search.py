@@ -15,6 +15,7 @@ import httpx
 from app.config import get_settings
 from app.db.client import create_db
 from app.rag.embed import embedder_from_settings
+from app.rag.model_guard import ensure_db_model
 from app.rag.search import DEFAULT_MATCH_COUNT, hybrid_search
 
 
@@ -28,6 +29,7 @@ async def main(args: argparse.Namespace) -> None:
     async with httpx.AsyncClient(timeout=60) as client:
         embedder = embedder_from_settings(client, settings, cache_dir=None)
         vector = await embedder.embed_query(args.question)
+    await ensure_db_model(db, embedder.model)  # never compare vectors of two models
     hits = await hybrid_search(
         db,
         vector,

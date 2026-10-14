@@ -144,6 +144,7 @@ class _Query:
         self.filters: list = []
         self.order_by: list = []
         self.limit_n = None
+        self.range_: tuple[int, int] | None = None
         self.mode = "many"
 
     def select(self, _columns: str = "*", **_kwargs) -> "_Query":
@@ -203,6 +204,10 @@ class _Query:
         self.limit_n = n
         return self
 
+    def range(self, start: int, end: int) -> "_Query":
+        self.range_ = (start, end)  # inclusive, like PostgREST
+        return self
+
     def maybe_single(self) -> "_Query":
         self.mode = "maybe_single"
         return self
@@ -233,6 +238,8 @@ class _Query:
         rows = self._matching()
         for column, desc in reversed(self.order_by):
             rows.sort(key=lambda r, c=column: r.get(c), reverse=desc)
+        if self.range_ is not None:
+            rows = rows[self.range_[0] : self.range_[1] + 1]
         if self.limit_n is not None:
             rows = rows[: self.limit_n]
         rows = copy.deepcopy(rows)

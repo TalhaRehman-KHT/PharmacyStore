@@ -2,7 +2,10 @@
 
 import json
 
-from app.ingest.load import load, read_chunks
+import pytest
+
+from app.ingest.load import load, read_chunks, select_drugs
+from app.rag.model_guard import EmbeddingModelMismatch
 from tests.fakes import FakeSupabase
 from tests.fakes.gemini import DIM, DailyLimitGemini, FakeGemini
 
@@ -86,6 +89,44 @@ def test_read_chunks_groups_by_label_and_limits(tmp_path):
     path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     assert {k: len(v) for k, v in read_chunks(path).items()} == {"A": 2, "B": 1, "C": 1}
     assert list(read_chunks(path, limit=2)) == ["A", "B"]
+
+
+async def test_every_row_stores_the_embedding_model():
+    db = FakeSupabase()
+    await load(db, FakeGemini().embedder(), docs_of({"L1": 2}))
+    metas = [c["metadata"] for c in db.rows("drug_chunks")]
+    assert metas == [{"field": "warnings", "embedding_model": "gemini-embedding-001"}] * 2
+
+
+async def test_legacy_rows_are_rewritten_with_the_model_tag(tmp_path):
+    db = FakeSupabase()
+    await load(db, FakeGemini().embedder(cache_dir=tmp_path), docs_of({"L1": 2}))
+    for c in db.rows("drug_chunks"):
+        c["metadata"].pop("embedding_model")  # as loaded before F5
+    gemini = FakeGemini()
+    await load(db, gemini.embedder(cache_dir=tmp_path), docs_of({"L1": 2}))
+    assert gemini.calls == []  # backfill from the cache: no quota
+    assert all(c["metadata"]["embedding_model"] for c in db.rows("drug_chunks"))
+
+
+async def test_another_model_in_the_db_stops_before_any_api_call():
+    db = FakeSupabase()
+    db.seed("drug_chunks", document_id="X", chunk_index=0, metadata={"embedding_model": "other"})
+    gemini = FakeGemini()
+    with pytest.raises(EmbeddingModelMismatch):
+        await load(db, gemini.embedder(), docs_of({"L1": 2}))
+    assert gemini.calls == [] and db.rows("drug_documents") == []
+
+
+def test_select_drugs_by_generic_name():
+    docs = {
+        "A": [chunk_row("A", 0)],
+        "B": [chunk_row("B", 0)],
+        "C": [chunk_row("C", 0)],
+    }
+    picked, unknown = select_drugs(docs, ["DRUG-C", " drug-a", "nope", ""])
+    assert list(picked) == ["A", "C"]  # file order, case-insensitive
+    assert unknown == ["nope"]
 
 
 async def test_quota_stop_loads_only_fully_embedded_documents_then_resumes(tmp_path):

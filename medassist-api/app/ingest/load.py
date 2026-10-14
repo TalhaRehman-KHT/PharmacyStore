@@ -7,6 +7,8 @@ Input: data/chunks/chunks.jsonl (R15). For every document (one FDA label):
 Only chunks whose embedding has exactly `dim` values are inserted. When the daily Gemini quota
 runs out, only documents whose chunks are ALL embedded (cache) are written; the rest wait for the
 next run. A dry run embeds (and so fills the cache) but writes nothing to the database.
+Every chunk row stores metadata.embedding_model; a real run first checks that the database holds
+no vectors of another model (app.rag.model_guard) and stops before spending any quota if it does.
 """
 
 import json
@@ -15,6 +17,7 @@ from pathlib import Path
 
 from app.paths import DATA_DIR
 from app.rag.embed import DailyQuotaExceeded, Embedder
+from app.rag.model_guard import MODEL_KEY, check_models, db_models
 from app.repositories.knowledge import replace_chunks, upsert_document
 
 CHUNKS_FILE = DATA_DIR / "chunks" / "chunks.jsonl"
@@ -50,11 +53,27 @@ def read_chunks(path: Path = CHUNKS_FILE, limit: int | None = None) -> dict[str,
     return docs
 
 
+def select_drugs(
+    docs: dict[str, list[dict]], names: list[str]
+) -> tuple[dict[str, list[dict]], list[str]]:
+    """Only the documents of these generic names (case-insensitive), in file order.
+    Also returns the names that have no document in the file."""
+    wanted = {n.strip().lower() for n in names if n.strip()}
+    picked = {
+        label: chunks for label, chunks in docs.items() if chunks[0]["drug_name"].lower() in wanted
+    }
+    found = {chunks[0]["drug_name"].lower() for chunks in picked.values()}
+    return picked, sorted(wanted - found)
+
+
 async def load(db, embedder: Embedder, docs: dict[str, list[dict]], *, dry_run: bool = False):
-    """Embed every chunk, then write documents + chunks (unless dry_run). Returns a LoadReport."""
+    """Embed every chunk, then write documents + chunks (unless dry_run). Returns a LoadReport.
+    Raises EmbeddingModelMismatch (before any API call) if the DB holds another model."""
     report = LoadReport(
         documents=len(docs), chunks_in_file=sum(map(len, docs.values())), dry_run=dry_run
     )
+    if not dry_run:
+        check_models(await db_models(db), embedder.model)
     # Embed everything first: full batches of 100 across documents = fewest API calls.
     rows = [row for chunks in docs.values() for row in chunks]
     texts = [row["content"] for row in rows]
@@ -87,7 +106,7 @@ async def load(db, embedder: Embedder, docs: dict[str, list[dict]], *, dry_run: 
                 "drug_name": c["drug_name"],
                 "content": c["content"],
                 "embedding": c["embedding"],
-                "metadata": c.get("metadata", {}),
+                "metadata": {**c.get("metadata", {}), MODEL_KEY: embedder.model},
             }
             for c in chunks
             if len(c["embedding"]) == embedder.dim

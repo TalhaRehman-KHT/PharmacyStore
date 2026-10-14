@@ -7,6 +7,7 @@ Used by eval/retrieval_smoke.py now and by graph/nodes/retrieve.py later (Stage 
 
 from typing import Any
 
+from app.rag.model_guard import ensure_db_model
 from app.rag.search import DEFAULT_MATCH_COUNT, SearchHit, hybrid_search
 
 TOP_K = 5
@@ -20,8 +21,12 @@ async def retrieve(
     *,
     rerank: bool = True,
     top_k: int = TOP_K,
+    embed_model: str | None = None,
 ) -> list[SearchHit]:
-    """Best chunks first, at most top_k."""
+    """Best chunks first, at most top_k. embed_model = the model that made `vector`: the search
+    refuses (EmbeddingModelMismatch) when the DB holds vectors of another model."""
+    if embed_model is not None:
+        await ensure_db_model(db, embed_model)
     if not rerank:
         return await hybrid_search(db, vector, "", match_count=top_k)
     hits = await hybrid_search(db, vector, query, match_count=DEFAULT_MATCH_COUNT)

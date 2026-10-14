@@ -6,7 +6,8 @@ Run with: python -m app.ingest.run <command>
               [--force] [--limit N] [--no-key]
   chunk       data/raw/*.json -> data/chunks/chunks.jsonl, data/chunk_report.md
   embed-load  chunks.jsonl -> Gemini vectors -> drug_documents + drug_chunks
-              [--limit N documents] [--dry-run] [--delay S]
+              [--limit N documents] [--drugs a,b,c] [--dry-run] [--delay S]
+  embed-status  documents/chunks in file vs DB, remaining, rows per embedding model (read-only)
 """
 
 import argparse
@@ -58,15 +59,29 @@ async def _chunk(_args: argparse.Namespace) -> None:
 async def _embed_load(args: argparse.Namespace) -> None:
     import httpx
 
-    from app.ingest.load import CHUNKS_FILE, load, read_chunks
+    from app.ingest.load import CHUNKS_FILE, load, read_chunks, select_drugs
     from app.rag.embed import embedder_from_settings
+    from app.rag.model_guard import EmbeddingModelMismatch
 
     settings = get_settings()
-    docs = read_chunks(CHUNKS_FILE, args.limit)
+    if args.drugs:
+        docs, unknown = select_drugs(read_chunks(CHUNKS_FILE), args.drugs.split(","))
+        if unknown:
+            print(f"not in chunks.jsonl (skipped): {', '.join(unknown)}")
+        if args.limit is not None:
+            docs = dict(list(docs.items())[: args.limit])
+        if not docs:
+            print("no documents selected, nothing to do")
+            return
+    else:
+        docs = read_chunks(CHUNKS_FILE, args.limit)
     db = None if args.dry_run else await create_db(settings)
     async with httpx.AsyncClient(timeout=60) as client:
         embedder = embedder_from_settings(client, settings, delay=args.delay)
-        r = await load(db, embedder, docs, dry_run=args.dry_run)
+        try:
+            r = await load(db, embedder, docs, dry_run=args.dry_run)
+        except EmbeddingModelMismatch as exc:
+            raise SystemExit(f"STOPPED: {exc}") from None
     print(
         f"model: {settings.gemini_embed_model} ({settings.embed_dim} dims) | "
         f"{'DRY RUN, nothing written' if r.dry_run else 'written to the database'}"
@@ -96,11 +111,21 @@ async def _embed_load(args: argparse.Namespace) -> None:
         )
 
 
+async def _embed_status(_args: argparse.Namespace) -> None:
+    from app.ingest.load import CHUNKS_FILE, read_chunks
+    from app.ingest.status import embed_status, render
+
+    settings = get_settings()
+    db = await create_db(settings)
+    print(render(await embed_status(db, read_chunks(CHUNKS_FILE)), settings.gemini_embed_model))
+
+
 COMMANDS = {
     "drug-list": lambda _args: _drug_list(),
     "download": _download,
     "chunk": _chunk,
     "embed-load": _embed_load,
+    "embed-status": _embed_status,
 }
 
 
@@ -113,6 +138,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--no-key", action="store_true", help="download: ignore OPENFDA_API_KEY (e.g. a bad key)"
+    )
+    parser.add_argument(
+        "--drugs",
+        help="embed-load: only these generic names, comma-separated (e.g. ibuprofen,metformin)",
     )
     parser.add_argument(
         "--dry-run", action="store_true", help="embed-load: embed only, write nothing to the DB"

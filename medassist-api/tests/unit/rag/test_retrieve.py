@@ -37,3 +37,19 @@ async def test_rerank_false_is_vector_only_without_reranker(monkeypatch):
     out = await r.retrieve(None, None, "q", [0.0], rerank=False)
     assert seen == [("", r.TOP_K)]
     assert len(out) == r.TOP_K
+
+
+async def test_embed_model_runs_the_guard_first(monkeypatch):
+    seen = []
+
+    async def fake_guard(db, model):
+        seen.append(("guard", model))
+
+    async def fake_search(db, vector, text, *, match_count, drug_filter=None):
+        seen.append("search")
+        return []
+
+    monkeypatch.setattr(r, "ensure_db_model", fake_guard)
+    monkeypatch.setattr(r, "hybrid_search", fake_search)
+    await r.retrieve(None, None, "q", [0.0], rerank=False, embed_model="m1")
+    assert seen == [("guard", "m1"), "search"]
