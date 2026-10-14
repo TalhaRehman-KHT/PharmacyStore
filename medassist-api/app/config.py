@@ -36,10 +36,12 @@ class Settings(BaseSettings):
     openfda_api_key: SecretStr | None = None
     langsmith_api_key: SecretStr | None = None
 
-    groq_fast_model: str = "llama-3.1-8b-instant"
-    groq_answer_model: str = "llama-3.3-70b-versatile"
+    # Groq ids checked with GET /openai/v1/models (2026-10-14); llama-3.x ids are no longer listed.
+    groq_fast_model: str = "openai/gpt-oss-20b"
+    groq_answer_model: str = "openai/gpt-oss-120b"
     gemini_embed_model: str = "gemini-embedding-001"
-    gemini_fallback_model: str = "gemini-2.0-flash"
+    # gemini-3.8-flash: 503/504 (overloaded) on 2026-10-14; 2.5-flash: 404 for new users.
+    gemini_fallback_model: str = "gemini-3.5-flash"
     embed_dim: int = 768
 
     cors_origins: list[str] = ["http://localhost:5173"]

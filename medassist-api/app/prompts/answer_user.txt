@@ -1,0 +1,10 @@
+<context>
+{context}
+</context>
+
+<question>
+{question}
+</question>
+
+Answer the question using only the numbered excerpts above. Cite [n] after each fact, reply in the language of the
+question, and end with the disclaimer line.
