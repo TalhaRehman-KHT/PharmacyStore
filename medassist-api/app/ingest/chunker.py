@@ -8,150 +8,18 @@ never inside a word. Why it is built this way: docs/LEARNING.md "Chunker".
 import json
 import re
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
+# Label structure and cleaning live in label.py / clean.py; imported here (callers and tests
+# keep importing them from chunker).
+from app.ingest.clean import clean_text
+from app.ingest.label import SECTION_MAP, Chunk, DocMeta, doc_meta, header, section_text  # noqa: F401
 from app.paths import DATA_DIR
 
 MAX_CHARS = 1200  # whole chunk, header included
 BODY_CHARS = 1000  # body text per chunk, so header + body stays under MAX_CHARS
 OVERLAP_CHARS = 150  # repeated at the start of the next chunk of the same section
-
-# openFDA field -> section title, in output order (boxed_warning always first).
-# Old-format labels use "warnings"/"precautions"; new ones use "warnings_and_cautions".
-SECTION_MAP: dict[str, str] = {
-    "boxed_warning": "Boxed Warning",
-    "indications_and_usage": "Indications and Usage",
-    "dosage_and_administration": "Dosage and Administration",
-    "dosage_forms_and_strengths": "Dosage Forms and Strengths",
-    "contraindications": "Contraindications",
-    "warnings_and_cautions": "Warnings and Precautions",
-    "warnings": "Warnings",
-    "precautions": "Precautions",
-    "adverse_reactions": "Adverse Reactions",
-    "drug_interactions": "Drug Interactions",
-    "use_in_specific_populations": "Use in Specific Populations",
-    "pregnancy": "Pregnancy",
-    "nursing_mothers": "Lactation",
-    "pediatric_use": "Pediatric Use",
-    "geriatric_use": "Geriatric Use",
-    "overdosage": "Overdosage",
-    "mechanism_of_action": "Mechanism of Action",
-    "clinical_pharmacology": "Clinical Pharmacology",
-    "how_supplied": "How Supplied",
-    "storage_and_handling": "Storage and Handling",
-}
-
-
-@dataclass
-class DocMeta:
-    """One drug_documents row."""
-
-    label_id: str
-    generic_name: str
-    brand_names: list[str] = field(default_factory=list)
-    source_url: str | None = None
-    effective_date: str | None = None  # YYYY-MM-DD
-
-
-@dataclass
-class Chunk:
-    """One drug_chunks row (without the embedding)."""
-
-    label_id: str
-    drug_name: str
-    section: str
-    chunk_index: int  # 0, 1, 2 ... within one section
-    content: str  # header line + body text
-    metadata: dict = field(default_factory=dict)
-
-
-def header(drug_name: str, section: str) -> str:
-    """First line of every chunk, so the embedding knows the drug and the section."""
-    return f"Drug: {drug_name} | Section: {section}"
-
-
-def section_text(label: dict, field_name: str) -> str:
-    """Text of one openFDA field (stored as a list of strings), joined as paragraphs."""
-    value = label.get(field_name)
-    if not value:
-        return ""
-    parts = value if isinstance(value, list) else [value]
-    return "\n\n".join(str(p).strip() for p in parts if str(p).strip())
-
-
-def doc_meta(record: dict) -> DocMeta:
-    """drug_documents fields from a data/raw/<drug>.json record."""
-    label = record["label"]
-    openfda = label.get("openfda", {})
-    set_id = label.get("set_id") or (openfda.get("spl_set_id") or [None])[0]
-    effective = label.get("effective_time") or ""
-    return DocMeta(
-        label_id=label["id"],
-        generic_name=record["drug"],
-        brand_names=sorted({b.strip() for b in openfda.get("brand_name", []) if b.strip()}),
-        source_url=f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={set_id}"
-        if set_id
-        else None,
-        effective_date=f"{effective[:4]}-{effective[4:6]}-{effective[6:8]}"
-        if len(effective) >= 8
-        else None,
-    )
-
-
-# ---------- cleaning ----------
-
-# Titles that labels put at the very start of a section ("5 WARNINGS AND PRECAUTIONS", "USES").
-# The header line already names the section, so the title is only noise. Longest first, so
-# "WARNINGS AND PRECAUTIONS" wins over "WARNINGS".
-_TITLES = sorted(
-    {t.upper() for t in SECTION_MAP.values()}
-    | {
-        "INDICATIONS AND USAGE",
-        "INDICATIONS",
-        "USES",
-        "DIRECTIONS",
-        "BOXED WARNING",
-        "WARNINGS AND CAUTIONS",
-        "NURSING MOTHERS",
-        "OVERDOSE",
-        "HOW SUPPLIED/STORAGE AND HANDLING",
-        "STORAGE",
-    },
-    key=len,
-    reverse=True,
-)
-# Optional section number ("5", "5.1"), then one title in capitals, then a space or the end.
-# "AND" may be written "&". A title followed by ":" ("WARNING: BLEEDING RISK") is real content
-# and stays, because the title must be followed by whitespace.
-_LEADING_TITLE = re.compile(
-    r"^\s*(?:\d+(?:\.\d+)*\s+)?(?:"
-    + "|".join(re.escape(t).replace(r"\ AND\ ", r"\s+(?:AND|&)\s+").replace(r"\ ", r"\s+")
-               for t in _TITLES)
-    + r")(?=\s|$)"
-)
-_SPACES = re.compile(r"[ \t\r\f\v]+")
-# openFDA writes "( 5.1 ) ." and "[see ... ] ,"; glue brackets and punctuation back on.
-_SPACE_BEFORE_PUNCT = re.compile(r" +([.,;:)\]])")
-_SPACE_AFTER_OPEN = re.compile(r"([(\[]) +")
-
-
-def clean_text(text: str) -> str:
-    """Collapse whitespace, drop a leading section number/title, remove empty lines.
-
-    Paragraphs stay separated by exactly one blank line ("\\n\\n"), because the splitter uses
-    them as its first (best) place to cut.
-    """
-    text = _LEADING_TITLE.sub("", text, count=1)
-    paragraphs: list[str] = []
-    for block in re.split(r"\n\s*\n", text):  # a blank line = a new paragraph
-        lines = [_SPACES.sub(" ", line).strip() for line in block.splitlines()]
-        block = " ".join(line for line in lines if line)  # single newlines are just wrapping
-        block = _SPACE_AFTER_OPEN.sub(r"\1", _SPACE_BEFORE_PUNCT.sub(r"\1", block))
-        if block:
-            paragraphs.append(block)
-    return "\n\n".join(paragraphs)
-
 
 # ---------- splitting ----------
 
