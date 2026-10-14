@@ -5,12 +5,15 @@ Matched case-insensitively as substrings; the first matching rule wins.
 """
 
 from app.schemas.common import EscalationReason
+from app.services.language import Language
 
-ESCALATION_TEXT = (
-    "This question needs a pharmacist, so I have sent it to one. Their reply will appear in this "
-    "chat.\n\n(Is sawal ke liye pharmacist ki zaroorat hai, is liye maine usay bhej diya hai. "
-    "Un ka jawab isi chat mein aa jayega.)"
-)
+# Shown instead of an answer, in the language of the question.
+ESCALATION_TEXT: dict[Language, str] = {
+    "en": "This question needs a pharmacist, so I have sent it to one. Their reply will appear in "
+    "this chat.",
+    "roman_urdu": "Is sawal ke liye pharmacist ki zaroorat hai, is liye maine usay bhej diya hai. "
+    "Un ka jawab isi chat mein aa jayega.",
+}
 
 _ESCALATION_RULES: list[tuple[tuple[str, ...], EscalationReason]] = [
     (("dose", "kitni"), "personal_dosing"),

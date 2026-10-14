@@ -82,7 +82,7 @@ async def test_no_chunks_skips_the_llm():
 
     pieces, result = await run(rag)
 
-    assert pieces == [naive.NO_EVIDENCE_TEXT]
+    assert pieces == [naive.NO_EVIDENCE_TEXT["en"]]
     assert (result.route, result.citations, result.tokens) == ("no_evidence", [], None)
     assert rag.llms == []
 
@@ -92,7 +92,23 @@ async def test_answer_without_valid_citation_becomes_no_evidence():
 
     pieces, result = await run(rag)
 
-    assert pieces == [naive.NO_EVIDENCE_TEXT]  # the model's words were never shown
-    assert result.text == naive.NO_EVIDENCE_TEXT
+    assert pieces == [naive.NO_EVIDENCE_TEXT["en"]]  # the model's words were never shown
+    assert result.text == naive.NO_EVIDENCE_TEXT["en"]
     assert result.route == "no_evidence"
     assert result.tokens == 120  # the call still cost tokens
+
+
+async def test_roman_urdu_question_gets_roman_urdu_text_and_language_line():
+    rag = make_rag(rows=[])
+    pieces, _ = await run(rag, "kya metformin se sar dard hota hai?")
+    assert pieces == [naive.NO_EVIDENCE_TEXT["roman_urdu"]]
+
+    rag = make_rag()
+    await run(rag, "kya paracetamol se jigar ko nuqsan hota hai?")
+    assert "Reply language: Roman Urdu only" in rag.llms[0].messages[-1].content
+
+
+def test_search_text_adds_the_previous_customer_question():
+    history = [("user", "Is Panadol safe?"), ("assistant", "Yes [1]."), ("pharmacist", "ok")]
+    assert naive.search_text("and for kids?", history) == "Is Panadol safe?\nand for kids?"
+    assert naive.search_text("q", []) == "q"

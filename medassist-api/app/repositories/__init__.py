@@ -37,6 +37,9 @@ class Repos:
     async def get_messages(self, user_id: UUID, session_id: UUID):
         return await messages.get_messages(self.db, user_id, session_id)
 
+    async def recent_messages(self, session_id: UUID, limit: int) -> list[tuple[str, str]]:
+        return await messages.recent_messages(self.db, session_id, limit)
+
     # feedback
     async def upsert_feedback(self, user_id: UUID, message_id: UUID, rating: int, comment):
         await feedback.upsert_feedback(self.db, user_id, message_id, rating, comment)

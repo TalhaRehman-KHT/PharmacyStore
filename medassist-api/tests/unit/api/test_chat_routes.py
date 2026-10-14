@@ -137,7 +137,7 @@ def test_dosing_question_escalates_with_pharmacy(client, db, make_user, rag):
     assert meta["escalated"] is True
     assert meta["escalationReason"] == "personal_dosing"
     assert meta["escalationStatus"] == "pending"
-    assert res.json()["answer"] == precheck.ESCALATION_TEXT
+    assert res.json()["answer"] == precheck.ESCALATION_TEXT["roman_urdu"]  # "kitni" question
     assert res.json()["citations"] == []
     assert rag.llms == [] and rag.embedder.calls == []  # no retrieval, no LLM
 
@@ -153,7 +153,9 @@ def test_dosing_question_escalates_with_pharmacy(client, db, make_user, rag):
 def test_pregnancy_question_escalates_without_pharmacy(client, db, make_user):
     _, headers = make_user()
 
-    ask(client, headers, "Can I take this while pregnant?")
+    res = ask(client, headers, "Can I take this while pregnant?")
+
+    assert res.json()["answer"] == precheck.ESCALATION_TEXT["en"]  # English only
 
     [esc] = db.rows("escalations")
     assert esc["reason"] == "pregnancy_or_child"
@@ -168,6 +170,31 @@ def test_unknown_pharmacy_returns_422(client, db, make_user):
     assert res.status_code == 422
     assert res.json() == {"status": 422, "message": "pharmacyId: unknown pharmacy"}
     assert db.rows("chat_messages") == []
+
+
+def test_earlier_turns_go_into_the_prompt(client, db, make_user, rag):
+    _, headers = make_user()
+    session_id = ask(client, headers, "What is paracetamol?").json()["meta"]["sessionId"]
+
+    ask(client, headers, "And for children?", sessionId=session_id)
+
+    messages = rag.llms[-1].messages
+    roles = [type(m).__name__ for m in messages]
+    assert roles == ["SystemMessage", "HumanMessage", "AIMessage", "HumanMessage"]
+    assert messages[1].content == "What is paracetamol?"
+    assert "[1]" not in messages[2].content  # old citation markers removed
+    assert "<question>\nAnd for children?\n</question>" in messages[3].content
+    # the follow-up is searched together with the previous question
+    assert rag.embedder.calls[-1] == "What is paracetamol?\nAnd for children?"
+
+
+def test_history_is_only_from_the_same_session(client, db, make_user, rag):
+    _, headers = make_user()
+    ask(client, headers, "What is paracetamol?")
+
+    ask(client, headers, "What is aspirin?")  # new session
+
+    assert [type(m).__name__ for m in rag.llms[-1].messages] == ["SystemMessage", "HumanMessage"]
 
 
 # ---------- rate limit ----------
@@ -264,7 +291,7 @@ def test_no_chunks_gives_no_evidence(client, db, make_user, rag):
 
     events = parse_sse(res.text)
     text = "".join(data["text"] for name, data in events if name == "token")
-    assert text == naive.NO_EVIDENCE_TEXT
+    assert text == naive.NO_EVIDENCE_TEXT["en"]
     assert events[-3] == ("citations", [])
     assert events[-2][1]["route"] == "no_evidence"
     assert "tokens" not in events[-2][1]

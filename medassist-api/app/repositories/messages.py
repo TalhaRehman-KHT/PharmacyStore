@@ -43,6 +43,20 @@ async def add_message(
     return res.data[0]
 
 
+async def recent_messages(db: AsyncClient, session_id: UUID, limit: int) -> list[tuple[str, str]]:
+    """The last `limit` messages of a session as (role, content), oldest first (one query).
+    The caller has already checked that the session belongs to the user."""
+    res = await (
+        db.table("chat_messages")
+        .select("role, content, created_at")
+        .eq("session_id", str(session_id))
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return [(r["role"], r["content"]) for r in reversed(res.data or [])]
+
+
 async def get_messages(db: AsyncClient, user_id: UUID, session_id: UUID) -> list[ChatMessageOut]:
     """Messages of one of the caller's sessions, oldest first.
 

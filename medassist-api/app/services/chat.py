@@ -11,8 +11,10 @@ from app.repositories import Repos
 from app.schemas.chat import AnswerMeta, AskRequest, AskResponse
 from app.schemas.common import Variant
 from app.services import precheck
+from app.services.language import detect_language
 
 TITLE_LENGTH = 40
+HISTORY_MESSAGES = 4  # the last 2 question/answer pairs go into the prompt
 
 
 async def resolve_session(repos: Repos, user_id: UUID, body: AskRequest) -> UUID:
@@ -44,6 +46,8 @@ async def answer_stream(
     """Answer one turn in an already resolved session: text pieces (str) while the answer is
     written, then the stored AskResponse. Both messages are persisted."""
     started = time.perf_counter()
+    # Earlier turns of this chat (read BEFORE the new question is stored).
+    history = await repos.recent_messages(session_id, HISTORY_MESSAGES)
     await repos.add_message(
         session_id=session_id, user_id=user_id, role="user", content=body.question
     )
@@ -52,11 +56,12 @@ async def answer_stream(
     reason = precheck.escalation_reason(body.question)
     result: naive.RagAnswer | None = None
     if reason is not None:
-        for piece in words(precheck.ESCALATION_TEXT):
+        text = precheck.ESCALATION_TEXT[detect_language(body.question)]
+        for piece in words(text):
             yield piece
-        result = naive.RagAnswer(precheck.ESCALATION_TEXT, "escalated")
+        result = naive.RagAnswer(text, "escalated")
     else:
-        async for item in naive.answer_stream(body.question, rag):
+        async for item in naive.answer_stream(body.question, rag, history):
             if isinstance(item, naive.RagAnswer):
                 result = item
             else:

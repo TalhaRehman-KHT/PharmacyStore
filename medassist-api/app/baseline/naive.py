@@ -2,6 +2,8 @@
 
 question -> embed_query -> hybrid_search (20) -> rerank (5) -> prompt with chunks [1]..[5]
 -> stream the answer LLM -> keep only the citations the answer really used.
+Earlier turns of the chat go into the prompt (so "it" / "and for children?" make sense) and the
+previous customer question is added to the search text.
 
 No-evidence rule: no chunk found, or an answer without one valid [n] -> route no_evidence and the
 standard NO_EVIDENCE_TEXT instead of the model's words. To never show text that is replaced
@@ -10,22 +12,25 @@ out at once. So the first token arrives a little later (end of the first cited s
 """
 
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 
-from app.llm.answer_prompt import answer_messages
+from app.llm.answer_prompt import Turn, answer_messages
 from app.rag.deps import RagDeps
 from app.rag.retrieve import retrieve
 from app.rag.search import SearchHit
 from app.repositories.knowledge import source_urls
 from app.schemas.chat import Citation
 from app.schemas.common import Route
+from app.services.language import Language, detect_language
 
-NO_EVIDENCE_TEXT = (
-    "I could not find this in the medicine labels I have, so I cannot answer it safely. "
-    "Please ask a pharmacist or your doctor.\n\n(Ye maloomat mere paas mojood labels mein nahi "
-    "hai. Pharmacist ya doctor se poochein.)"
-)
+# Shown instead of an uncited answer, in the language of the question.
+NO_EVIDENCE_TEXT: dict[Language, str] = {
+    "en": "I could not find this in the medicine labels I have, so I cannot answer it safely. "
+    "Please ask a pharmacist or your doctor.",
+    "roman_urdu": "Ye maloomat mere paas maujood medicine labels mein nahi hai, is liye main is ka "
+    "jawab mehfooz tareeqe se nahi de sakta. Pharmacist ya doctor se poochein.",
+}
 DAILYMED_SEARCH = "https://dailymed.nlm.nih.gov/dailymed/search.cfm?query={drug}"
 _MARKER = re.compile(r"\[(\d+)\]")
 
@@ -65,20 +70,32 @@ async def build_citations(db, chunks: list[SearchHit], numbers: list[int]) -> li
     ]
 
 
-async def answer_stream(question: str, deps: RagDeps) -> AsyncIterator[str | RagAnswer]:
-    """Answer text pieces (str) as they arrive, then one RagAnswer with the full result."""
-    vector = await deps.embedder.embed_query(question)
-    chunks = await retrieve(
-        deps.db, deps.reranker, question, vector, embed_model=deps.embedder.model
-    )
+def search_text(question: str, history: Sequence[Turn]) -> str:
+    """What is embedded and searched: the question, plus the previous customer question when the
+    chat has one, so a follow-up ("and for children?") still finds the drug talked about before."""
+    previous = next((text for role, text in reversed(history) if role == "user"), None)
+    return f"{previous}\n{question}" if previous else question
+
+
+async def answer_stream(
+    question: str, deps: RagDeps, history: Sequence[Turn] = ()
+) -> AsyncIterator[str | RagAnswer]:
+    """Answer text pieces (str) as they arrive, then one RagAnswer with the full result.
+    `history` = earlier messages of this chat, oldest first (see answer_prompt.Turn)."""
+    language = detect_language(question)
+    query = search_text(question, history)
+    vector = await deps.embedder.embed_query(query)
+    chunks = await retrieve(deps.db, deps.reranker, query, vector, embed_model=deps.embedder.model)
+    no_evidence = NO_EVIDENCE_TEXT[language]
     if not chunks:
-        yield NO_EVIDENCE_TEXT
-        yield RagAnswer(NO_EVIDENCE_TEXT, "no_evidence")
+        yield no_evidence
+        yield RagAnswer(no_evidence, "no_evidence")
         return
 
     llm = deps.answer_llm()
     text, live = "", False
-    async for piece in llm.astream(answer_messages(question, chunks)):
+    messages = answer_messages(question, chunks, history, language)
+    async for piece in llm.astream(messages):
         text += piece
         if live:
             yield piece
@@ -89,8 +106,8 @@ async def answer_stream(question: str, deps: RagDeps) -> AsyncIterator[str | Rag
     tokens = usage.input_tokens + usage.output_tokens if usage else None
 
     if not live:  # the model never cited a chunk: do not show unsupported text
-        yield NO_EVIDENCE_TEXT
-        yield RagAnswer(NO_EVIDENCE_TEXT, "no_evidence", tokens=tokens)
+        yield no_evidence
+        yield RagAnswer(no_evidence, "no_evidence", tokens=tokens)
         return
     citations = await build_citations(deps.db, chunks, used_numbers(text, len(chunks)))
     yield RagAnswer(text, "knowledge", citations, tokens)

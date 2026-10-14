@@ -2,7 +2,7 @@
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.llm.answer_prompt import NO_CONTEXT, answer_messages, load_prompt
+from app.llm.answer_prompt import HISTORY_CHARS, NO_CONTEXT, answer_messages, load_prompt
 from app.rag.search import SearchHit
 
 
@@ -29,6 +29,29 @@ def test_system_message_is_rules_only():
     system, _ = answer_messages("q", [hit(1, "aspirin", "Warnings", "UNIQUE-CHUNK-TEXT")])
     assert system.content == load_prompt("answer")
     assert "UNIQUE-CHUNK-TEXT" not in system.content
+
+
+def test_history_comes_between_rules_and_question():
+    history = [
+        ("user", "Is Panadol safe?"),
+        ("assistant", "Yes, at label doses [1][2]. " + "x " * 400),
+        ("pharmacist", "Take it after food."),
+    ]
+    msgs = answer_messages("and for kids?", [], history, "roman_urdu")
+
+    assert [type(m).__name__ for m in msgs] == [
+        "SystemMessage",
+        "HumanMessage",
+        "AIMessage",
+        "AIMessage",
+        "HumanMessage",
+    ]
+    assert msgs[1].content == "Is Panadol safe?"
+    assert msgs[2].content.startswith("Yes, at label doses.")  # old [n] removed
+    assert len(msgs[2].content) <= HISTORY_CHARS + 4 and msgs[2].content.endswith(" ...")
+    assert msgs[3].content == "(Pharmacist reply) Take it after food."
+    assert "Reply language: Roman Urdu only" in msgs[-1].content
+    assert "{language}" not in msgs[-1].content
 
 
 def test_no_chunks_says_so():
