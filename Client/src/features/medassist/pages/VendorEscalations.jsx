@@ -7,6 +7,7 @@ import { useEscalationInsights } from "../hooks/useEscalationInsights.js";
 import EscalationList from "../components/EscalationList.jsx";
 import EscalationDrawer from "../components/EscalationDrawer.jsx";
 import EscalationInsightsCard from "../components/EscalationInsightsCard.jsx";
+import MockBadge from "../components/MockBadge.jsx";
 
 const TABS = [
   { key: "pending", label: "Pending" },
@@ -30,7 +31,10 @@ export default function VendorEscalations() {
         <div className="min-h-full">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
             <div className="mb-6">
-              <h1 className="text-2xl font-bold text-gray-900">Escalations</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-gray-900">Escalations</h1>
+                <MockBadge />
+              </div>
               <p className="text-gray-500 mt-1 text-sm">
                 Questions MedAssist sent to a pharmacist. Your reply appears in the customer's chat.
               </p>

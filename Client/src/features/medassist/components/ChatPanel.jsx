@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { LogIn, MessageCircle, SquarePen, X } from "lucide-react";
 import ChatConversation from "./ChatConversation.jsx";
+import MockBadge from "./MockBadge.jsx";
 
 function LoggedOutBody({ onClose }) {
   const navigate = useNavigate();
@@ -74,9 +75,12 @@ export default function ChatPanel({ chat, loggedIn, productName, rateLimitedUnti
           <h2 id="medassist-title" className="text-base font-bold text-text-primary leading-tight">
             MedAssist
           </h2>
-          <span className="inline-block mt-0.5 px-2 py-0.5 rounded-lg bg-primary-green/10 text-primary-green text-[11px] font-semibold">
-            Information only
-          </span>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+            <span className="inline-block px-2 py-0.5 rounded-lg bg-primary-green/10 text-primary-green text-[11px] font-semibold">
+              Information only
+            </span>
+            <MockBadge />
+          </div>
         </div>
         {loggedIn && (
           <button

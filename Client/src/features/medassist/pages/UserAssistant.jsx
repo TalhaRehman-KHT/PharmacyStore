@@ -7,6 +7,7 @@ import { useChatSessions } from "../hooks/useChatSessions.js";
 import ChatConversation from "../components/ChatConversation.jsx";
 import SessionSidebar from "../components/SessionSidebar.jsx";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
+import MockBadge from "../components/MockBadge.jsx";
 
 /**
  * Full-page MedAssist. Shares the chat with the floating widget (MedAssistContext),
@@ -116,9 +117,12 @@ export default function UserAssistant() {
               <MessagesSquare className="w-5 h-5" />
             </button>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-bold text-text-primary truncate">
-                {activeTitle || "MedAssist"}
-              </h2>
+              <div className="flex items-center gap-2 min-w-0">
+                <h2 className="text-base sm:text-lg font-bold text-text-primary truncate">
+                  {activeTitle || "MedAssist"}
+                </h2>
+                <MockBadge />
+              </div>
               <p className="text-xs text-text-secondary">Information only, based on US FDA labels</p>
             </div>
           </div>

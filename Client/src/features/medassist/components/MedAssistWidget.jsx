@@ -21,7 +21,8 @@ export default function MedAssistWidget() {
   const launcherRef = useRef(null);
   const wasOpenRef = useRef(open);
 
-  const loggedIn = Boolean(user) && CUSTOMER_ROLES.includes(user.role);
+  // No user id = logged out (the "Log in to use MedAssist" state), never mock data.
+  const loggedIn = Boolean(user?.id) && CUSTOMER_ROLES.includes(user.role);
   // /user/assistant is the full-page chat, so the launcher is not shown there.
   const onAssistantPage = pathname === ASSISTANT_PATH || pathname.startsWith(`${ASSISTANT_PATH}/`);
   const visible =
