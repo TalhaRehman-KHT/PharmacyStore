@@ -15,7 +15,7 @@ import MockBadge from "../components/MockBadge.jsx";
  */
 export default function UserAssistant() {
   const { chat, productName, rateLimitedUntil } = useMedAssist();
-  const { sessionId, status, newChat, loadSession } = chat;
+  const { sessionId, answerCount, newChat, loadSession } = chat;
   const { sessions, loading, error, refresh, clearHistory } = useChatSessions();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -23,12 +23,13 @@ export default function UserAssistant() {
   const inputRef = useRef(null);
 
   // Keep the list in sync: a new chat appears, and the active one moves to the top after each answer.
-  const prevStatusRef = useRef(status);
+  // answerCount (not status) so a one-chunk reply, e.g. an escalation, also refreshes (BUG-R2).
+  const prevAnswerCountRef = useRef(answerCount);
   useEffect(() => {
-    const finished = prevStatusRef.current === "streaming" && status !== "streaming";
-    prevStatusRef.current = status;
-    if (finished) refresh();
-  }, [status, refresh]);
+    if (answerCount === prevAnswerCountRef.current) return;
+    prevAnswerCountRef.current = answerCount;
+    refresh();
+  }, [answerCount, refresh]);
 
   const handleSelect = (id) => {
     setDrawerOpen(false);

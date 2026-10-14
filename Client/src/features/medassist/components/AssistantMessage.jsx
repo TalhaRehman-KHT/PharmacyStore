@@ -12,9 +12,12 @@ import { citationDomId } from "../utils.js";
 
 const CITE_HREF = "#medassist-cite-";
 
-/** Turn bare markers like [1] into links the `a` renderer below shows as superscript buttons. */
+/**
+ * Turn bare markers like [1] into links the `a` renderer below shows as superscript buttons.
+ * "[1][2]" must become two links; skipping a "[" after the marker made markdown read it as a reference link.
+ */
 function linkCitations(text) {
-  return text.replace(/\[(\d{1,2})\](?![(:[])/g, `[$1](${CITE_HREF}$1)`);
+  return text.replace(/\[(\d{1,2})\](?![(:])/g, `[$1](${CITE_HREF}$1)`);
 }
 
 function scrollToCitation(messageId, n) {
@@ -113,10 +116,13 @@ export default function AssistantMessage({ message, streaming, onRate, onAdd, ad
         </div>
       )}
 
-      <div className="mt-1 flex items-start justify-between gap-2">
-        <Disclaimer />
-        {done && <FeedbackButtons value={message.feedback} onRate={(rating) => onRate(message.id, rating)} />}
-      </div>
+      {/* An escalated message is not an FDA-label answer, so no label footer and nothing to rate. */}
+      {!meta?.escalated && (
+        <div className="mt-1 flex items-start justify-between gap-2">
+          <Disclaimer />
+          {done && <FeedbackButtons value={message.feedback} onRate={(rating) => onRate(message.id, rating)} />}
+        </div>
+      )}
     </div>
   );
 }

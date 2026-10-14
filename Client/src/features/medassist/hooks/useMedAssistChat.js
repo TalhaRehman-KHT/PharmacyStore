@@ -26,6 +26,9 @@ export function useMedAssistChat({ initialSessionId, onSessionCreated } = {}) {
   const [status, setStatus] = useState("idle");
   /** @type {[ApiError | null, Function]} */
   const [error, setError] = useState(null);
+  // +1 each time an exchange ends (done or stopped). Pages watch it to refresh lists; a status
+  // transition is not enough because a one-chunk reply goes loading -> idle in one React batch.
+  const [answerCount, setAnswerCount] = useState(0);
 
   const abortRef = useRef(null);
   const sessionIdRef = useRef(sessionId);
@@ -119,6 +122,7 @@ export function useMedAssistChat({ initialSessionId, onSessionCreated } = {}) {
               if (!live()) return;
               abortRef.current = null;
               setStatus("idle");
+              setAnswerCount((n) => n + 1);
             },
             onError: fail,
           },
@@ -138,6 +142,7 @@ export function useMedAssistChat({ initialSessionId, onSessionCreated } = {}) {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, note: "stopped" } : m)));
     abortCurrent();
     setStatus("idle");
+    setAnswerCount((n) => n + 1);
   }, [abortCurrent]);
 
   const retry = useCallback(() => {
@@ -216,6 +221,7 @@ export function useMedAssistChat({ initialSessionId, onSessionCreated } = {}) {
     sessionId,
     status,
     error,
+    answerCount,
     isBusy: status === "loading" || status === "streaming",
     send,
     stop,
