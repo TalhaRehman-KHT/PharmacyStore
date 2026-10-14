@@ -1,0 +1,232 @@
+"""/ask, /ask/stream, rate limit, validation and auth on every route.
+
+GET /sessions/{id}/messages is covered in tests/unit/repositories/test_messages_repo.py.
+"""
+
+from uuid import uuid4
+
+import pytest
+
+from app.services import chat, placeholder
+from tests.unit.api.helpers import ask, messages_of, parse_sse
+
+SID = uuid4()
+ROUTES = [
+    ("post", "/ask", {"question": "What is paracetamol?"}),
+    ("post", "/ask/stream", {"question": "What is paracetamol?"}),
+    ("get", "/sessions", None),
+    ("get", f"/sessions/{SID}/messages", None),
+    ("delete", "/sessions", None),
+    ("post", f"/messages/{SID}/feedback", {"rating": 1}),
+    ("get", "/escalations", None),
+    ("post", f"/escalations/{SID}/reply", {"reply": "Take it after food, twice a day."}),
+    ("get", "/insights", None),
+]
+
+
+# ---------- auth on every route ----------
+
+
+@pytest.mark.parametrize(("method", "path", "body"), ROUTES)
+def test_every_route_needs_a_token(client, method, path, body):
+    res = client.request(method, path, json=body)
+
+    assert res.status_code == 401
+    assert res.json() == {"status": 401, "message": "Missing X-User-Id header"}
+
+
+# ---------- /ask ----------
+
+
+def test_ask_creates_session_and_two_messages(client, db, make_user):
+    user_id, headers = make_user()
+    question = "What are the common side effects of ibuprofen tablets?"
+
+    res = ask(client, headers, question)
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["answer"] == placeholder.ANSWER
+    assert body["citations"] == []
+    meta = body["meta"]
+    assert meta["route"] == "knowledge"
+    assert meta["escalated"] is False
+    assert "escalationStatus" not in meta  # None fields are dropped
+    assert isinstance(meta["latencyMs"], int)
+
+    [session] = db.rows("chat_sessions")
+    assert session["id"] == meta["sessionId"]
+    assert session["user_id"] == user_id
+    assert session["title"] == question[: chat.TITLE_LENGTH]
+
+    user_msg, bot_msg = messages_of(db, session["id"])
+    assert (user_msg["role"], user_msg["content"]) == ("user", question)
+    assert bot_msg["role"] == "assistant"
+    assert bot_msg["id"] == meta["messageId"]
+    assert (bot_msg["route"], bot_msg["variant"]) == ("knowledge", "agent")
+    assert bot_msg["latency_ms"] == meta["latencyMs"]
+
+
+def test_ask_variant_is_stored(client, db, make_user):
+    _, headers = make_user()
+
+    res = client.post("/ask?variant=naive", json={"question": "hi"}, headers=headers)
+
+    assert res.status_code == 200
+    assert db.rows("chat_messages")[-1]["variant"] == "naive"
+
+
+def test_ask_reuses_own_session(client, db, make_user):
+    _, headers = make_user()
+    session_id = ask(client, headers).json()["meta"]["sessionId"]
+
+    res = ask(client, headers, "And for children?", sessionId=session_id)
+
+    assert res.status_code == 200
+    assert res.json()["meta"]["sessionId"] == session_id
+    assert len(db.rows("chat_sessions")) == 1
+    assert len(messages_of(db, session_id)) == 4
+
+
+@pytest.mark.parametrize("path", ["/ask", "/ask/stream"])
+def test_ask_with_other_users_session_returns_404(client, db, make_user, path):
+    _, alice = make_user(name="Alice")
+    _, bob = make_user(name="Bob")
+    alice_session = ask(client, alice).json()["meta"]["sessionId"]
+
+    res = client.post(path, json={"question": "hi", "sessionId": alice_session}, headers=bob)
+
+    assert res.status_code == 404
+    assert res.json() == {"status": 404, "message": "Session not found"}
+    assert len(messages_of(db, alice_session)) == 2  # nothing written into Alice's chat
+
+
+def test_dosing_question_escalates_with_pharmacy(client, db, make_user):
+    user_id, headers = make_user()
+    vendor = db.seed("users", name="Vendor", role="vendor", is_active=True)
+    pharmacy = db.seed("pharmacies", vendor_id=vendor["id"], name="City Pharmacy")
+
+    res = ask(client, headers, "Panadol kitni dose?", pharmacyId=pharmacy["id"])
+
+    assert res.status_code == 200
+    meta = res.json()["meta"]
+    assert meta["route"] == "escalated"
+    assert meta["escalated"] is True
+    assert meta["escalationReason"] == "personal_dosing"
+    assert meta["escalationStatus"] == "pending"
+
+    [esc] = db.rows("escalations")
+    assert esc["message_id"] == meta["messageId"]
+    assert esc["session_id"] == meta["sessionId"]
+    assert esc["user_id"] == user_id
+    assert esc["reason"] == "personal_dosing"
+    assert esc["status"] == "pending"
+    assert esc["pharmacy_id"] == pharmacy["id"]
+
+
+def test_pregnancy_question_escalates_without_pharmacy(client, db, make_user):
+    _, headers = make_user()
+
+    ask(client, headers, "Can I take this while pregnant?")
+
+    [esc] = db.rows("escalations")
+    assert esc["reason"] == "pregnancy_or_child"
+    assert esc["pharmacy_id"] is None
+
+
+def test_unknown_pharmacy_returns_422(client, db, make_user):
+    _, headers = make_user()
+
+    res = ask(client, headers, "kitni dose?", pharmacyId=str(uuid4()))
+
+    assert res.status_code == 422
+    assert res.json() == {"status": 422, "message": "pharmacyId: unknown pharmacy"}
+    assert db.rows("chat_messages") == []
+
+
+# ---------- rate limit ----------
+
+
+def test_21st_ask_in_an_hour_returns_429(client, make_user):
+    _, headers = make_user()
+    for _ in range(20):
+        assert ask(client, headers).status_code == 200
+
+    res = ask(client, headers)
+
+    assert res.status_code == 429
+    body = res.json()
+    assert body["status"] == 429
+    assert body["message"] == "Too many questions. Please try again later."
+    retry_after = int(res.headers["Retry-After"])
+    assert 1 <= retry_after <= 3600
+    assert body["retryAfterSec"] == retry_after
+
+
+def test_stream_shares_the_ask_budget_per_user(client, make_user):
+    _, alice = make_user(name="Alice")
+    _, bob = make_user(name="Bob")
+    for _ in range(20):
+        ask(client, alice)
+
+    assert client.post("/ask/stream", json={"question": "hi"}, headers=alice).status_code == 429
+    assert ask(client, bob).status_code == 200  # the limit is per user, not global
+
+
+# ---------- /ask/stream ----------
+
+
+def test_stream_event_order_and_camel_case(client, db, make_user):
+    _, headers = make_user()
+
+    res = client.post("/ask/stream", json={"question": "What is paracetamol?"}, headers=headers)
+
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("text/event-stream")
+    events = parse_sse(res.text)
+    names = [name for name, _ in events]
+    tokens = names.count("token")
+    assert tokens >= 2
+    assert names == ["token"] * tokens + ["citations", "meta", "done"]
+
+    assert "".join(data["text"] for name, data in events if name == "token") == placeholder.ANSWER
+    assert events[-3][1] == []
+    meta = events[-2][1]
+    assert {"messageId", "sessionId", "route", "escalated", "latencyMs"} <= set(meta)
+    assert not any("_" in key for key in meta)
+    assert events[-1][1] == {}
+
+    assert meta["messageId"] == messages_of(db, meta["sessionId"])[-1]["id"]
+
+
+def test_stream_failure_sends_error_event(client, make_user, monkeypatch):
+    _, headers = make_user()
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("model down")
+
+    monkeypatch.setattr(chat, "answer_question", boom)
+
+    res = client.post("/ask/stream", json={"question": "hi"}, headers=headers)
+
+    assert parse_sse(res.text) == [
+        ("error", {"status": 500, "message": "Internal server error"})
+    ]
+
+
+# ---------- validation ----------
+
+
+def test_invalid_body_returns_422(client, make_user):
+    _, headers = make_user()
+    res = client.post("/ask", json={"question": "   "}, headers=headers)
+
+    assert res.status_code == 422
+    assert res.json()["status"] == 422
+
+
+def test_invalid_query_returns_422(client, make_user):
+    _, headers = make_user("admin")
+    res = client.post("/ask?variant=magic", json={"question": "hi"}, headers=headers)
+    assert res.status_code == 422
+    assert client.get("/escalations?status=closed", headers=headers).status_code == 422
