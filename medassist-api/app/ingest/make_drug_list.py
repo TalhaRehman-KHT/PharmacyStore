@@ -6,14 +6,14 @@ Reads only (SELECT id, name, generic_name FROM medicines). Writes, under data/:
 - drug_report.md: counts, rows without a usable generic, top generic names
 """
 
-import csv
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from supabase import AsyncClient
 
-from app.ingest.names import clean_generic, clean_label, normalize_generic, us_name_map
+from app.ingest.names import clean_label, normalize_generic, us_name_map
+from app.ingest.synonyms import propose_synonyms, write_synonyms_csv
 from app.paths import DATA_DIR
 from app.repositories.medicines import fetch_medicines
 
@@ -47,7 +47,6 @@ def build(rows: list[dict], extras: list[str] | None = None) -> DrugListResult:
     result = DrugListResult(total=len(rows), extras=list(extras or []))
     by_label: dict[str, list[str]] = {}
     known = set(us_name_map()) | set(us_name_map().values())
-    synonyms: dict[tuple[str, str], tuple[str, str, str, str]] = {}
     blanks: list[dict] = []
 
     for row in rows:
@@ -59,14 +58,8 @@ def build(rows: list[dict], extras: list[str] | None = None) -> DrugListResult:
         result.counts.update(parts)
         known.update(parts)
         label = clean_label(row.get("name"))
-        if not label:
-            continue
-        by_label.setdefault(label, parts)
-        if normalize_generic(row.get("name")) != parts:
-            inn = " + ".join(clean_generic(row.get("generic_name")))
-            synonyms.setdefault(
-                (label, inn), (label, inn, " + ".join(parts), "product_table")
-            )
+        if label:
+            by_label.setdefault(label, parts)
 
     for row in blanks:
         name = row.get("name") or ""
@@ -80,7 +73,7 @@ def build(rows: list[dict], extras: list[str] | None = None) -> DrugListResult:
         else:
             result.not_derived.append(name)
 
-    result.synonyms = sorted(synonyms.values())
+    result.synonyms = propose_synonyms(rows)
     result.drugs = sorted(set(result.counts) | set(result.extras))
     return result
 
@@ -126,10 +119,7 @@ def write_outputs(r: DrugListResult, data_dir: Path = DATA_DIR) -> None:
     (data_dir / "drugs.txt").write_text(
         "".join(f"{d}\n" for d in r.drugs), encoding="utf-8"
     )
-    with (data_dir / "synonyms_proposed.csv").open("w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["brand_name", "generic_name", "us_name", "source"])
-        writer.writerows(r.synonyms)
+    write_synonyms_csv(data_dir / "synonyms_proposed.csv", r.synonyms)
     (data_dir / "drug_report.md").write_text(render_report(r), encoding="utf-8")
 
 
