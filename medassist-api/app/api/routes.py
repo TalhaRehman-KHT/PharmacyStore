@@ -18,7 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 from app.api.deps import get_rag, get_repos
-from app.errors import Conflict, NotFound
+from app.errors import BUSY_MESSAGE, Conflict, NotFound
+from app.llm.providers import AllProvidersBusy
 from app.rag.deps import RagDeps
 from app.rate_limit import ask_limit
 from app.repositories import Repos
@@ -114,6 +115,13 @@ async def ask_stream(
         except (NotFound, Conflict) as exc:
             code = 404 if isinstance(exc, NotFound) else 409
             yield _event("error", {"status": code, "message": exc.message})
+            return
+        except AllProvidersBusy as exc:
+            logger.warning("All LLM providers busy; retry in %s s", exc.retry_after_s)
+            yield _event(
+                "error",
+                {"status": 429, "message": BUSY_MESSAGE, "retryAfterSec": exc.retry_after_s},
+            )
             return
         except Exception:
             logger.exception("Stream failed for session %s", session_id)

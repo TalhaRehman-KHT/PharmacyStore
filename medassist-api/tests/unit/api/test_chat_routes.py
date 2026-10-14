@@ -8,6 +8,8 @@ from uuid import uuid4
 import pytest
 
 from app.baseline import naive
+from app.errors import BUSY_MESSAGE
+from app.llm.providers import AllProvidersBusy
 from app.services import chat, precheck
 from tests.fakes.rag import REPLY
 from tests.unit.api.helpers import ask, messages_of, parse_sse
@@ -315,3 +317,28 @@ def test_invalid_query_returns_422(client, make_user):
     res = client.post("/ask?variant=magic", json={"question": "hi"}, headers=headers)
     assert res.status_code == 422
     assert client.get("/escalations?status=closed", headers=headers).status_code == 422
+
+
+# ---------- every LLM busy (S4) ----------
+
+
+def test_all_providers_busy_gives_429_with_retry_after(client, db, make_user, rag):
+    _, headers = make_user()
+    rag.error = AllProvidersBusy(17)
+
+    res = ask(client, headers)
+
+    assert res.status_code == 429
+    assert res.headers["Retry-After"] == "17"
+    assert res.json() == {"status": 429, "message": BUSY_MESSAGE, "retryAfterSec": 17}
+
+
+def test_all_providers_busy_in_stream_sends_429_event(client, db, make_user, rag):
+    _, headers = make_user()
+    rag.error = AllProvidersBusy(17)
+
+    res = client.post("/ask/stream", json={"question": "hi"}, headers=headers)
+
+    assert parse_sse(res.text) == [
+        ("error", {"status": 429, "message": BUSY_MESSAGE, "retryAfterSec": 17})
+    ]

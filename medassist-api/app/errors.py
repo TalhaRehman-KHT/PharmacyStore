@@ -4,6 +4,9 @@ Messages are generic on purpose: "not found" is also used for rows owned by anot
 caller can never tell whether someone else's id exists.
 """
 
+# Sent with HTTP 429 when every LLM provider is busy (llm.providers.AllProvidersBusy).
+BUSY_MESSAGE = "MedAssist is busy right now. Please try again in a moment."
+
 
 class NotFound(Exception):
     """The row does not exist or does not belong to the caller (HTTP 404)."""

@@ -15,7 +15,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api import routes
 from app.config import get_settings
 from app.db import client as db_client
-from app.errors import Conflict, NotFound
+from app.errors import BUSY_MESSAGE, Conflict, NotFound
+from app.llm.providers import AllProvidersBusy
 from app.rag.deps import create_rag_deps
 from app.rate_limit import limiter, retry_after_seconds
 
@@ -87,6 +88,16 @@ def create_app() -> FastAPI:
             "Too many questions. Please try again later.",
             headers={"Retry-After": str(retry_after)},
             retryAfterSec=retry_after,
+        )
+
+    @app.exception_handler(AllProvidersBusy)
+    async def llm_busy(_: Request, exc: AllProvidersBusy) -> JSONResponse:
+        logger.warning("All LLM providers busy; Retry-After %s s", exc.retry_after_s)
+        return _error(
+            429,
+            BUSY_MESSAGE,
+            headers={"Retry-After": str(exc.retry_after_s)},
+            retryAfterSec=exc.retry_after_s,
         )
 
     @app.exception_handler(RequestValidationError)

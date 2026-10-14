@@ -37,12 +37,21 @@ class Settings(BaseSettings):
     langsmith_api_key: SecretStr | None = None
 
     # Groq ids checked with GET /openai/v1/models (2026-10-14); llama-3.x ids are no longer listed.
+    # All three chat models have the same free limits (8000 tokens/min, 1000 requests/day); qwen
+    # cited most precisely in the S4 comparison. The backup model runs when the main one is busy.
     groq_fast_model: str = "openai/gpt-oss-20b"
-    groq_answer_model: str = "openai/gpt-oss-120b"
+    groq_answer_model: str = "qwen/qwen3.8-27b"
+    groq_backup_model: str | None = "openai/gpt-oss-20b"
     gemini_embed_model: str = "gemini-embedding-001"
     # gemini-3.8-flash: 503/504 (overloaded) on 2026-10-14; 2.5-flash: 404 for new users.
     gemini_fallback_model: str = "gemini-3.5-flash"
     embed_dim: int = 768
+
+    # Retrieval (S4, PROGRESS.md "Observations"): vector-only had the best Recall@5 and MRR;
+    # no FlashRank model beat plain hybrid, so reranking is off unless RERANK_ENABLED=true.
+    retrieval_mode: Literal["vector", "hybrid"] = "vector"
+    rerank_enabled: bool = False
+    rerank_model: str = "ms-marco-MiniLM-L-12-v2"
 
     cors_origins: list[str] = ["http://localhost:5173"]
     rate_limit: str = "20/hour"

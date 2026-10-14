@@ -13,23 +13,27 @@ from app.paths import DATA_DIR
 from app.rag.search import SearchHit
 
 DEFAULT_TOP_N = 5
-MODEL_NAME = "ms-marco-TinyBERT-L-2-v2"
+MODEL_NAME = "ms-marco-TinyBERT-L-2-v2"  # FlashRank's default (~4 MB)
+STRONG_MODEL_NAME = "ms-marco-MiniLM-L-12-v2"  # bigger cross-encoder (~34 MB), compared in S4
 CACHE_DIR = DATA_DIR / "flashrank"
 
 
 class Reranker:
     """Wraps a flashrank.Ranker. Tests pass a fake `ranker` with the same rerank(request) method."""
 
-    def __init__(self, ranker: Any = None, top_n: int = DEFAULT_TOP_N) -> None:
+    def __init__(
+        self, ranker: Any = None, top_n: int = DEFAULT_TOP_N, model_name: str = MODEL_NAME
+    ) -> None:
         self._ranker = ranker
         self.top_n = top_n
+        self.model_name = model_name
 
     def _get_ranker(self) -> Any:
         if self._ranker is None:
             from flashrank import Ranker  # heavy import (onnxruntime): only when first needed
 
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            self._ranker = Ranker(model_name=MODEL_NAME, cache_dir=str(CACHE_DIR))
+            self._ranker = Ranker(model_name=self.model_name, cache_dir=str(CACHE_DIR))
         return self._ranker
 
     def rerank_sync(

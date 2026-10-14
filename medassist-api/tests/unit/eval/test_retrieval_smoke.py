@@ -58,24 +58,33 @@ async def test_query_vectors_cached_so_rerun_costs_no_call(tmp_path):
     assert len(json.loads(cache.read_text("utf-8"))) == 1
 
 
-async def test_pipelines_vector_uses_empty_text_and_hybrid_is_reranked(monkeypatch):
+async def test_four_setups_vector_hybrid_and_two_rerankers(monkeypatch):
     seen = []
 
     async def fake_search(db, vector, text, *, match_count, drug_filter=None):
         seen.append((text, match_count))
         if text == "":
             return [hit("aspirin", "Warnings")] * 5  # vector only: a miss
-        return [hit("aspirin", "Warnings")] * 19 + [hit("acetaminophen", "Warnings")]
+        return [hit("aspirin", "Warnings")] * (match_count - 1) + [hit("acetaminophen", "Warnings")]
 
     class FakeReranker:
+        def __init__(self, first: bool) -> None:
+            self.first = first
+
         async def rerank(self, query, hits, top_n=None):
-            return list(reversed(hits))[:top_n]  # puts the right chunk first
+            ordered = list(reversed(hits)) if self.first else hits  # first=True: right chunk first
+            return ordered[:top_n]
 
     monkeypatch.setattr("app.rag.retrieve.hybrid_search", fake_search)
-    vec, hyb = await rs.run_pipelines(None, FakeReranker(), Q, [0.0])
-    assert seen == [("", rs.K), (Q.question, 20)]
-    assert (vec.mode, vec.rank) == ("vector", None)
-    assert (hyb.mode, hyb.rank) == ("hybrid_rerank", 1)
+    rerankers = {"rerank_tiny": FakeReranker(False), "rerank_minilm": FakeReranker(True)}
+    outs = await rs.run_pipelines(None, rerankers, Q, [0.0])
+    assert seen == [("", rs.K), (Q.question, rs.K), (Q.question, 20), (Q.question, 20)]
+    assert [(o.mode, o.rank) for o in outs] == [
+        ("vector", None),
+        ("hybrid", 5),
+        ("rerank_tiny", None),
+        ("rerank_minilm", 1),
+    ]
 
 
 def test_report_lists_groups_and_misses_with_top_3():
@@ -84,12 +93,12 @@ def test_report_lists_groups_and_misses_with_top_3():
     top = [hit("aspirin", "Warnings", f"{header}chunk {i}") for i in "abcd"]
     outs = [
         rs.Outcome(Q, "vector", 2, []),
-        rs.Outcome(Q, "hybrid_rerank", 1, []),
+        rs.Outcome(Q, "rerank_minilm", 1, []),
         rs.Outcome(ur, "vector", None, top),
-        rs.Outcome(ur, "hybrid_rerank", 1, []),
+        rs.Outcome(ur, "rerank_minilm", 1, []),
     ]
     md = rs.build_report(outs, "partial load")
     assert "partial load" in md
     assert "| vector only | all | 2 | 0.50 | 0.25 |" in md
-    assert "| hybrid + rerank | roman_urdu | 1 | 1.00 | 1.00 |" in md
+    assert "| hybrid + MiniLM-L12 | roman_urdu | 1 | 1.00 | 1.00 |" in md
     assert "chunk c" in md and "chunk d" not in md  # only the top 3 of a miss

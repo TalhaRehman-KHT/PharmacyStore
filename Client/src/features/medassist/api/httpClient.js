@@ -106,7 +106,8 @@ export const httpClient = {
         h.onDone();
       } else if (event === "error") {
         finished = true;
-        h.onError(apiError(Number(payload.status) || 500, payload.message || "Something went wrong"));
+        const retry = Number(payload.retryAfterSec) || undefined; // 429 when the AI is busy
+        h.onError(apiError(Number(payload.status) || 500, payload.message || "Something went wrong", retry));
       }
     });
 

@@ -69,6 +69,7 @@ class FakeRag:
         self.embedder = FakeEmbedder()
         self.llms: list[FakeLLM] = []
         self.searches: list[dict] = []
+        self.mode = "vector"  # RagDeps.retrieval_mode (the app default)
         db.rpc_handlers["hybrid_search"] = self._search
 
     def _search(self, params: dict) -> list[dict]:
@@ -81,4 +82,4 @@ class FakeRag:
         return llm
 
     def deps(self) -> RagDeps:
-        return RagDeps(self.db, self.embedder, FakeReranker(), self._new_llm)
+        return RagDeps(self.db, self.embedder, FakeReranker(), self._new_llm, self.mode)

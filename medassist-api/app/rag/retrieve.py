@@ -1,16 +1,19 @@
 """Retrieve pipeline: question + its vector -> the best chunks.
 
-Default: hybrid_search (vector + keyword, RRF) top 20 -> FlashRank rerank -> top k.
-rerank=False: vector-only search (empty keyword text), top k, no reranker.
-Used by eval/retrieval_smoke.py now and by graph/nodes/retrieve.py later (Stage 6).
+Modes (S4 measured them on eval/retrieval_smoke.csv, see PROGRESS.md "Observations"):
+  vector         vector-only search (empty keyword text), top k
+  hybrid         hybrid_search (vector + keyword, RRF), top k
+  hybrid_rerank  hybrid_search top 20 -> cross-encoder reranker -> top k
+The app picks hybrid_rerank only when settings.rerank_enabled is true (rag/deps.py).
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from app.rag.model_guard import ensure_db_model
 from app.rag.search import DEFAULT_MATCH_COUNT, SearchHit, hybrid_search
 
-TOP_K = 5
+TOP_K = 4  # chunks in the prompt (S4: 4 instead of 5 keeps one answer under Groq's token budget)
+Mode = Literal["vector", "hybrid", "hybrid_rerank"]
 
 
 async def retrieve(
@@ -19,7 +22,7 @@ async def retrieve(
     query: str,
     vector: list[float],
     *,
-    rerank: bool = True,
+    mode: Mode = "hybrid",
     top_k: int = TOP_K,
     embed_model: str | None = None,
 ) -> list[SearchHit]:
@@ -27,7 +30,9 @@ async def retrieve(
     refuses (EmbeddingModelMismatch) when the DB holds vectors of another model."""
     if embed_model is not None:
         await ensure_db_model(db, embed_model)
-    if not rerank:
+    if mode == "vector":
         return await hybrid_search(db, vector, "", match_count=top_k)
+    if mode == "hybrid":
+        return await hybrid_search(db, vector, query, match_count=top_k)
     hits = await hybrid_search(db, vector, query, match_count=DEFAULT_MATCH_COUNT)
     return await reranker.rerank(query, hits, top_n=top_k)

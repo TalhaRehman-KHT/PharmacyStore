@@ -1,7 +1,8 @@
 """Plain retrieve-then-generate RAG, kept as the research baseline (variant "naive").
 
-question -> embed_query -> hybrid_search (20) -> rerank (5) -> prompt with chunks [1]..[5]
--> stream the answer LLM -> keep only the citations the answer really used.
+question -> embed_query -> retrieve (default: vector search, top 4; settings RETRIEVAL_MODE /
+RERANK_ENABLED) -> prompt with chunks [1]..[4] -> stream the answer LLM
+-> keep only the citations the answer really used.
 Earlier turns of the chat go into the prompt (so "it" / "and for children?" make sense) and the
 previous customer question is added to the search text.
 
@@ -85,7 +86,14 @@ async def answer_stream(
     language = detect_language(question)
     query = search_text(question, history)
     vector = await deps.embedder.embed_query(query)
-    chunks = await retrieve(deps.db, deps.reranker, query, vector, embed_model=deps.embedder.model)
+    chunks = await retrieve(
+        deps.db,
+        deps.reranker,
+        query,
+        vector,
+        mode=deps.retrieval_mode,
+        embed_model=deps.embedder.model,
+    )
     no_evidence = NO_EVIDENCE_TEXT[language]
     if not chunks:
         yield no_evidence

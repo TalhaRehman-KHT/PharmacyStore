@@ -31,7 +31,7 @@ def test_used_numbers_keeps_valid_markers_in_first_use_order():
     assert naive.used_numbers("no markers", 5) == []
 
 
-async def test_pipeline_embeds_searches_20_and_prompts_with_numbered_chunks():
+async def test_default_is_vector_search_top_4_in_the_prompt():
     rows = [chunk_row(i, "ibuprofen", "Warnings", f"text {i}") for i in range(1, 8)]
     rag = make_rag(rows)
 
@@ -39,12 +39,25 @@ async def test_pipeline_embeds_searches_20_and_prompts_with_numbered_chunks():
 
     assert rag.embedder.calls == ["ibuprofen with warfarin?"]
     [search] = rag.searches
-    assert search["match_count"] == 20
-    assert search["query_text"] == "ibuprofen with warfarin?"
+    assert (search["match_count"], search["query_text"]) == (4, "")  # vector only, no reranker
     human = rag.llms[0].messages[-1]
     assert isinstance(human, HumanMessage)
-    assert "[5] ibuprofen / Warnings\ntext 5" in human.content
-    assert "[6]" not in human.content  # reranked to top 5
+    assert "[4] ibuprofen / Warnings\ntext 4" in human.content
+    assert "[5]" not in human.content
+
+
+async def test_rerank_mode_searches_20_then_reranks():
+    rows = [chunk_row(i) for i in range(1, 25)]
+    rag = make_rag(rows)
+    rag.mode = "hybrid_rerank"
+
+    await run(rag, "q?")
+
+    [search] = rag.searches
+    assert (search["match_count"], search["query_text"]) == (20, "q?")
+    assert (
+        "[4]" in rag.llms[0].messages[-1].content and "[5]" not in rag.llms[0].messages[-1].content
+    )
 
 
 async def test_only_used_citations_with_document_url():

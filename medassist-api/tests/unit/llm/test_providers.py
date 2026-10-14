@@ -42,8 +42,10 @@ class FakeChat:
 
 
 def make_llm(primary: FakeChat, fallback: FakeChat | None = None, timeout=1.0) -> p.LLM:
-    fb = p.Provider("gemini", "gem-flash", fallback) if fallback else None
-    return p.LLM(p.Provider("groq", "gpt-oss", primary), fb, timeout=timeout, retry_wait=0)
+    chain = [p.Provider("groq", "gpt-oss", primary, timeout)]
+    if fallback:
+        chain.append(p.Provider("gemini", "gem-flash", fallback, timeout))
+    return p.LLM(chain, retry_wait=0)
 
 
 async def collect(llm: p.LLM) -> list[str]:
@@ -105,10 +107,64 @@ async def test_other_errors_are_raised():
         await llm.ainvoke(MESSAGES)
 
 
-async def test_429_without_fallback_raises():
-    llm = make_llm(FakeChat(errors=[StatusError(429)]))
-    with pytest.raises(p.FallbackNeeded):
+class RetryAfterError(StatusError):
+    def __init__(self, seconds: str) -> None:
+        super().__init__(429)
+        self.response = type("R", (), {"headers": {"retry-after": seconds}, "status_code": 429})()
+
+
+async def test_every_provider_busy_raises_all_busy_with_retry_after():
+    llm = make_llm(FakeChat(errors=[RetryAfterError("12")]), FakeChat(errors=[StatusError(429)]))
+    with pytest.raises(p.AllProvidersBusy) as info:
         await llm.ainvoke(MESSAGES)
+    assert info.value.retry_after_s == 12
+
+
+async def test_all_busy_default_retry_after():
+    llm = make_llm(FakeChat(errors=[StatusError(429)]))
+    with pytest.raises(p.AllProvidersBusy) as info:
+        await llm.ainvoke(MESSAGES)
+    assert info.value.retry_after_s == p.DEFAULT_RETRY_AFTER_S
+
+
+async def test_three_provider_chain_backup_model_then_gemini():
+    main = FakeChat(errors=[StatusError(429)])
+    backup = FakeChat(errors=[StatusError(429)])
+    gemini = FakeChat(parts=("ok",))
+    llm = p.LLM(
+        [
+            p.Provider("groq", "qwen", main, 1.0),
+            p.Provider("groq", "gpt-oss-20b", backup, 1.0),
+            p.Provider("gemini", "flash", gemini, 1.0),
+        ],
+        retry_wait=0,
+    )
+    assert await llm.ainvoke(MESSAGES) == "ok"
+    assert (main.calls, backup.calls, gemini.calls) == (1, 1, 1)
+    assert llm.last_usage.model == "flash"
+
+
+async def test_gemini_503_is_retried_with_backoff_then_answers():
+    gemini = FakeChat(parts=("late",), errors=[StatusError(503), StatusError(503)])
+    llm = make_llm(FakeChat(errors=[StatusError(429)]), gemini)
+    assert await llm.ainvoke(MESSAGES) == "late"
+    assert gemini.calls == 3
+
+
+async def test_5xx_that_stays_moves_on_and_ends_busy():
+    llm = make_llm(FakeChat(errors=[StatusError(503)] * 3), FakeChat(errors=[StatusError(503)] * 3))
+    with pytest.raises(p.AllProvidersBusy):
+        await llm.ainvoke(MESSAGES)
+
+
+def test_wrapped_errors_are_classified_by_their_cause():
+    try:
+        try:
+            raise StatusError(503)
+        except StatusError as inner:
+            raise RuntimeError("wrapped by langchain") from inner
+    except RuntimeError as outer:
+        assert p.is_transient(outer) and p.is_busy(outer)
 
 
 async def test_ainvoke_joins_the_stream():
@@ -130,10 +186,32 @@ def test_get_llm_uses_models_from_settings():
         gemini_api_key=SecretStr("m"),
         groq_fast_model="fast-m",
         groq_answer_model="answer-m",
+        groq_backup_model="backup-m",
         gemini_fallback_model="fallback-m",
         _env_file=None,
     )
     fast, answer = p.get_llm("fast", settings), p.get_llm("answer", settings)
-    assert (fast.primary.model, answer.primary.model) == ("fast-m", "answer-m")
-    assert fast.fallback.model == answer.fallback.model == "fallback-m"
-    assert fast.timeout < answer.timeout < fast.fallback_timeout
+    assert [x.model for x in answer.providers] == ["answer-m", "backup-m", "fallback-m"]
+    assert [x.model for x in fast.providers] == ["fast-m", "backup-m", "fallback-m"]
+    assert [x.name for x in answer.providers] == ["groq", "groq", "gemini"]
+    assert fast.providers[0].timeout < answer.providers[0].timeout < answer.providers[-1].timeout
+    assert answer.providers[0].chat.max_tokens == p.MAX_TOKENS["answer"]
+
+
+def test_backup_same_as_main_is_not_repeated():
+    settings = Settings(
+        supabase_url="https://x.supabase.co",
+        supabase_service_key=SecretStr("k"),
+        groq_api_key=SecretStr("g"),
+        gemini_api_key=SecretStr("m"),
+        groq_fast_model="same",
+        groq_backup_model="same",
+        _env_file=None,
+    )
+    assert [x.model for x in p.get_llm("fast", settings).providers][:2] != ["same", "same"]
+
+
+def test_reasoning_kwargs():
+    assert p._reasoning_kwargs("openai/gpt-oss-20b") == {"reasoning_effort": "low"}
+    assert p._reasoning_kwargs("qwen/qwen3.8-27b") == {"reasoning_format": "hidden"}
+    assert p._reasoning_kwargs("allam-2-7b") == {}

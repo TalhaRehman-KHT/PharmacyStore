@@ -2,9 +2,11 @@
 
 Run from medassist-api/:  python -m eval.retrieval_smoke
 
-For every row of eval/retrieval_smoke.csv it runs two pipelines:
-  (a) vector only:        hybrid_search with an empty query_text, first 5 rows
-  (b) hybrid + rerank:    hybrid_search (vector + keyword, RRF) top 20 -> FlashRank -> top 5
+For every row of eval/retrieval_smoke.csv it runs four setups (S4):
+  vector         hybrid_search with an empty query_text, first 5 rows
+  hybrid         hybrid_search (vector + keyword, RRF), first 5 rows
+  rerank_tiny    hybrid top 20 -> FlashRank ms-marco-TinyBERT-L-2-v2 (default model) -> top 5
+  rerank_minilm  hybrid top 20 -> FlashRank ms-marco-MiniLM-L-12-v2 (stronger) -> top 5
 A hit = a chunk whose drug AND section match the row, inside the top 5.
 Recall@5 = share of questions with a hit; MRR = mean of 1/rank of the first hit (0 when missed).
 
@@ -21,6 +23,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from app.rag.rerank import MODEL_NAME as TINY_MODEL
+from app.rag.rerank import STRONG_MODEL_NAME as STRONG_MODEL
 from app.rag.retrieve import retrieve
 from app.rag.search import SearchHit
 
@@ -29,8 +33,14 @@ QUESTIONS_FILE = EVAL_DIR / "retrieval_smoke.csv"
 CACHE_FILE = EVAL_DIR / "cache" / "query_vectors.json"
 REPORT_FILE = EVAL_DIR / "results" / "retrieval_smoke.md"
 K = 5
-MODES = ("vector", "hybrid_rerank")
-MODE_TITLES = {"vector": "vector only", "hybrid_rerank": "hybrid + rerank"}
+MODES = ("vector", "hybrid", "rerank_tiny", "rerank_minilm")
+MODE_TITLES = {
+    "vector": "vector only",
+    "hybrid": "hybrid",
+    "rerank_tiny": "hybrid + TinyBERT",
+    "rerank_minilm": "hybrid + MiniLM-L12",
+}
+RERANK_MODELS = {"rerank_tiny": TINY_MODEL, "rerank_minilm": STRONG_MODEL}
 
 
 @dataclass(frozen=True)
@@ -108,21 +118,32 @@ async def query_vectors(
     return out
 
 
-# ---------- the two pipelines ----------
+# ---------- the four setups ----------
 
 
 async def run_pipelines(
-    db, reranker, q: Question, vector: list[float], model: str | None = None
+    db, rerankers: dict, q: Question, vector: list[float], model: str | None = None
 ) -> list[Outcome]:
-    """(a) vector only and (b) hybrid + rerank for one question. `model` made the query vector."""
-    vec_hits = await retrieve(
-        db, reranker, q.question, vector, rerank=False, top_k=K, embed_model=model
-    )
-    reranked = await retrieve(db, reranker, q.question, vector, top_k=K, embed_model=model)
-    return [
-        Outcome(q, "vector", first_hit_rank(vec_hits, q), vec_hits[:K]),
-        Outcome(q, "hybrid_rerank", first_hit_rank(reranked, q), reranked[:K]),
-    ]
+    """Every setup in MODES for one question. `rerankers` = {mode: Reranker} for the rerank
+    setups; `model` made the query vector."""
+    out = []
+    for mode in MODES:
+        if mode in RERANK_MODELS:
+            hits = await retrieve(
+                db,
+                rerankers[mode],
+                q.question,
+                vector,
+                mode="hybrid_rerank",
+                top_k=K,
+                embed_model=model,
+            )
+        else:
+            hits = await retrieve(
+                db, None, q.question, vector, mode=mode, top_k=K, embed_model=model
+            )
+        out.append(Outcome(q, mode, first_hit_rank(hits, q), hits[:K]))
+    return out
 
 
 # ---------- report ----------
@@ -157,8 +178,10 @@ def build_report(outcomes: list[Outcome], note: str = "") -> str:
             )
 
     lines += ["", "## Per question (rank of the first hit, - = miss)", ""]
-    lines += ["| # | lang | question | expected | vector | hybrid+rerank |"]
-    lines += ["| --- | --- | --- | --- | --- | --- |"]
+    lines += [
+        "| # | lang | question | expected | " + " | ".join(MODE_TITLES[m] for m in MODES) + " |"
+    ]
+    lines += ["| --- " * (4 + len(MODES)) + "|"]
     by_q: dict[str, dict[str, Outcome]] = {}
     for o in outcomes:
         by_q.setdefault(o.question.question, {})[o.mode] = o
@@ -215,16 +238,17 @@ async def main() -> None:
         "chunks with an embedding (the full load is 64 documents / 3866 chunks)."
     )
 
-    reranker = Reranker()
+    rerankers = {mode: Reranker(model_name=name) for mode, name in RERANK_MODELS.items()}
     outcomes: list[Outcome] = []
     for q, vector in zip(questions, vectors, strict=True):
-        outcomes += await run_pipelines(db, reranker, q, vector, settings.gemini_embed_model)
+        outcomes += await run_pipelines(db, rerankers, q, vector, settings.gemini_embed_model)
 
     report = build_report(outcomes, note)
     REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
     REPORT_FILE.write_text(report, encoding="utf-8")
     print(report)
     print(f"wrote {REPORT_FILE.relative_to(EVAL_DIR.parent)}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
