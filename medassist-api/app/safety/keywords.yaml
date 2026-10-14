@@ -1,4 +1,4 @@
-# Safety keyword lists used by the guard node. Filled in a later step.
+# Safety keyword lists used by the guard node. Stub: filled in Stage 7 (safety).
 emergency: []
 dosing: []
 prescription_only: []

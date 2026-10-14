@@ -1,3 +1,3 @@
-"""Plain retrieve-then-generate RAG, kept as the research baseline."""
+"""Plain retrieve-then-generate RAG, kept as the research baseline.
 
-# plain RAG (kept for research)
+Stub: filled in step S2 (baseline RAG)."""

@@ -1,3 +1,3 @@
-"""LLM clients: Groq as primary, Gemini as fallback, behind one interface."""
+"""LLM clients: Groq as primary, Gemini as fallback, behind one interface.
 
-#  Groq + Gemini clients with fallback
+Stub: filled in step S1 (LLM providers)."""
