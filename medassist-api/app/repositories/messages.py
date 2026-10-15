@@ -1,5 +1,6 @@
 """Chat messages. jsonb columns (citations, products) are stored in the API's camelCase shape."""
 
+from datetime import datetime
 from uuid import UUID
 
 from supabase import AsyncClient
@@ -55,6 +56,24 @@ async def recent_messages(db: AsyncClient, session_id: UUID, limit: int) -> list
         .execute()
     )
     return [(r["role"], r["content"]) for r in reversed(res.data or [])]
+
+
+async def recent_question_times(
+    db: AsyncClient, user_id: UUID, since: datetime, limit: int
+) -> list[datetime]:
+    """created_at of the user's newest questions (role 'user') since `since`, newest first,
+    at most `limit` (index chat_messages_user_created_idx). Used by the rate limit."""
+    res = await (
+        db.table("chat_messages")
+        .select("created_at")
+        .eq("user_id", str(user_id))
+        .eq("role", "user")
+        .gte("created_at", since.isoformat())
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return [datetime.fromisoformat(r["created_at"]) for r in res.data or []]
 
 
 async def get_messages(db: AsyncClient, user_id: UUID, session_id: UUID) -> list[ChatMessageOut]:

@@ -20,25 +20,37 @@ Groups:
              token timeout, so main busy -> Groq backup, both Groq busy -> Gemini, all busy ->
              AllProvidersBusy (HTTP 429 in the API). Then 10 golden questions in a row through
              the full agent (no DB writes): answered / 429 / median time.
+- api:       real app instances in process (httpx ASGITransport, lifespan run): prod refuses bad
+             CORS_ORIGINS, /docs off in prod, API_PREFIX routing + X-Request-Id, /ready 200 and
+             503 (dead database URL). With CHECK_USER_EMAIL: `[check]` questions fill the user's
+             hourly limit -> 429 + Retry-After on two separate instances; one real /ask -> the
+             logs hold no question / answer text and one access line with route + tokens.
 
 Exit code 1 if any check fails. Secrets are never printed.
 """
 
 import asyncio
 import csv
+import io
+import json
+import logging
 import os
 import statistics
 import sys
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import get_args
 from uuid import uuid4
 
 import httpx
 from langchain_core.messages import HumanMessage
+from limits import parse as parse_limit
 from postgrest.exceptions import APIError
+from pydantic import ValidationError
 from supabase import AsyncClient, acreate_client
 
 from app.config import Settings, get_settings
@@ -47,12 +59,15 @@ from app.graph.build import run_agent
 from app.graph.nodes.guard import Safety, classify
 from app.graph.nodes.tools import find_alternatives, search_products, search_words
 from app.llm.providers import LLM, AllProvidersBusy, Provider, get_llm
+from app.main import create_app
+from app.observability import JsonFormatter
 from app.rag.deps import create_rag_deps, retrieval_mode
 from app.rag.embed import embedder_from_settings
 from app.rag.rerank import Reranker
 from app.rag.retrieve import retrieve
 from app.rag.search import hybrid_search
 from app.repositories.knowledge import chunk_inventory, list_documents
+from app.repositories.messages import recent_question_times
 from scripts._env import load_dotenv
 from scripts.smoke_test import Report, StepFailed, expect, find_user
 
@@ -407,10 +422,146 @@ async def check_llm(db: AsyncClient, settings: Settings, report: Report) -> None
     await step(report, f"llm: {BURST} agent questions in a row", burst)
 
 
+# ---------- api ----------
+
+LOG_MARKER = "zqxlogmarker"  # a word that must never show up in the logs
+
+
+@asynccontextmanager
+async def running_app(settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
+    """A real app instance (lifespan run: real Supabase client, real LLM deps), in process."""
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://app",
+                                     timeout=120) as client:
+            yield client
+
+
+async def seed_questions(db: AsyncClient, user_id: str, n: int) -> None:
+    """One `[check]` session with n user questions created now (counted by the rate limit)."""
+    session = (await db.table("chat_sessions").insert(
+        {"user_id": user_id, "title": f"{PREFIX} rate limit"}).execute()).data[0]
+    await db.table("chat_messages").insert([
+        {"session_id": session["id"], "user_id": user_id, "role": "user",
+         "content": f"{PREFIX} q{i}"} for i in range(n)
+    ]).execute()
+
+
+async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None:
+    site = ["https://medassist.example.com"]
+
+    async def prod_refusal():
+        for origins in ([], ["*"], ["http://localhost:5173"], ["http://127.0.0.1:5173"]):
+            try:
+                Settings(app_env="prod", cors_origins=origins)
+            except ValidationError:
+                continue
+            raise StepFailed(f"prod started with CORS_ORIGINS={origins}")
+        Settings(app_env="prod", cors_origins=site)  # a real origin is fine
+        return "empty, *, localhost, 127.0.0.1 refused"
+
+    async def prod_docs():
+        prod = settings.model_copy(update={"app_env": "prod", "cors_origins": site})
+        for enable, expected in ((False, 404), (True, 200)):
+            app = create_app(prod.model_copy(update={"enable_docs": enable}))
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                         base_url="http://app") as client:
+                for path in ("/docs", "/openapi.json"):
+                    got = (await client.get(path)).status_code
+                    expect(got == expected, f"ENABLE_DOCS={enable}: {path} {got}")
+        return "off in prod, on with ENABLE_DOCS=true"
+
+    async def prefix():
+        async with running_app(settings.model_copy(update={"api_prefix": "/medassist"})) as c:
+            res = await c.get("/medassist/health")
+            expect(res.status_code == 200, f"/medassist/health {res.status_code}")
+            expect(len(res.headers.get("x-request-id", "")) > 0, "no X-Request-Id")
+            expect((await c.get("/health")).status_code == 404, "/health without prefix answered")
+            sessions = await c.get("/medassist/sessions")
+            expect(sessions.status_code == 401, f"/medassist/sessions {sessions.status_code}")
+            mine = await c.get("/medassist/health", headers={"X-Request-Id": "abc-123"})
+            expect(mine.headers.get("x-request-id") == "abc-123", "caller's request id not kept")
+        return "/medassist/* routed, X-Request-Id returned"
+
+    async def ready():
+        async with running_app(settings) as c:
+            ok = await c.get("/ready")
+            expect(ok.status_code == 200, f"/ready {ok.status_code} {ok.text}")
+        broken = settings.model_copy(update={"supabase_url": "http://127.0.0.1:9"})
+        async with running_app(broken) as c:
+            res = await c.get("/ready")
+            expect(res.status_code == 503, f"/ready with a dead database: {res.status_code}")
+            live = await c.get("/health")
+            expect(live.status_code == 200, "/health must not depend on the database")
+        return f"200 when ready, 503 {res.json().get('problems')} with a dead database"
+
+    user = await find_user(db, "CHECK_USER_EMAIL", ("user", "doctor", "vendor", "admin"))
+
+    async def rate_limit_two_instances():
+        if user is None:
+            return "SKIPPED: CHECK_USER_EMAIL not set"
+        limit = parse_limit(settings.rate_limit)
+        await delete_check_sessions(db, user["id"])
+        used = len(await recent_question_times(
+            db, user["id"], datetime.now(UTC) - timedelta(seconds=limit.get_expiry()),
+            limit.amount))
+        try:
+            await seed_questions(db, user["id"], max(0, limit.amount - used))
+            body = {"question": f"{PREFIX} what is ibuprofen used for"}
+            async with running_app(settings) as a, running_app(settings) as b:
+                for name, client in (("A", a), ("B", b)):
+                    res = await client.post("/ask", json=body, headers={"X-User-Id": user["id"]})
+                    expect(res.status_code == 429, f"instance {name}: {res.status_code}")
+                    wait = int(res.headers["retry-after"])
+                    expect(0 < wait <= limit.get_expiry(), f"Retry-After {wait}")
+                    expect(res.json().get("retryAfterSec") == wait, "body retryAfterSec != header")
+        finally:
+            await delete_check_sessions(db, user["id"])
+        return f"{limit.amount} questions in the DB -> 429 on both instances, Retry-After {wait} s"
+
+    async def no_text_in_logs():
+        if user is None:
+            return "SKIPPED: CHECK_USER_EMAIL not set"
+        await delete_check_sessions(db, user["id"])
+        question = f"{PREFIX} What is ibuprofen used for {LOG_MARKER}?"
+        buffer = io.StringIO()
+        handler = logging.StreamHandler(buffer)
+        handler.setFormatter(JsonFormatter())
+        try:
+            async with running_app(settings) as c:
+                logging.getLogger().addHandler(handler)  # after create_app set up logging
+                res = await c.post("/ask", json={"question": question},
+                                   headers={"X-User-Id": user["id"]})
+                expect(res.status_code == 200, f"/ask {res.status_code}")
+                answer = res.json()["answer"]
+        finally:
+            logging.getLogger().removeHandler(handler)
+            await delete_check_sessions(db, user["id"])
+        logs = buffer.getvalue()
+        expect(LOG_MARKER not in logs, "the question text is in the logs")
+        snippet = answer.strip()[:30]
+        expect(len(snippet) < 10 or snippet not in logs, "the answer text is in the logs")
+        access = [json.loads(line) for line in logs.splitlines()
+                  if '"medassist.access"' in line and '"/ask"' in line]
+        expect(len(access) == 1, f"{len(access)} access lines for /ask")
+        line = access[0]
+        for key in ("request_id", "path", "status", "latency_ms", "user_id", "route", "tokens"):
+            expect(key in line, f"access line without {key}")
+        return f"{len(logs.splitlines())} log lines, no text; access line route={line['route']}"
+
+    await step(report, "api: prod refuses bad CORS_ORIGINS", prod_refusal)
+    await step(report, "api: /docs off in prod unless ENABLE_DOCS", prod_docs)
+    await step(report, "api: API_PREFIX routing + X-Request-Id", prefix)
+    await step(report, "api: /ready 200 / 503", ready)
+    await step(report, "api: rate limit shared by two app instances", rate_limit_two_instances)
+    await step(report, "api: no question / answer text in the logs", no_text_in_logs)
+
+
 # ---------- runner ----------
 
 GROUPS = {"db": check_db, "retrieval": check_retrieval, "products": check_products,
-          "guard": check_guard, "llm": check_llm}
+          "guard": check_guard, "llm": check_llm, "api": check_api}
 
 
 async def step(report: Report, name: str, fn) -> None:

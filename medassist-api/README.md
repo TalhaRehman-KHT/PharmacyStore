@@ -35,7 +35,10 @@ py -3.12 -m venv .venv
 copy .env.example .env        # then fill in the values (names are explained in the file)
 .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
-Open http://localhost:8000/docs for Swagger and http://localhost:8000/health for a health check.
+Open http://localhost:8000/docs for Swagger (dev only; prod needs `ENABLE_DOCS=true`).
+`/health` = liveness (no dependencies), `/ready` = readiness (settings + one DB query, 503 if not).
+All paths sit under `API_PREFIX` (empty by default). Logs are JSON lines with a request id
+(`X-Request-Id` header) and never contain question or answer text.
 Client: set `VITE_MEDASSIST_API_URL=http://localhost:8000` and `VITE_MEDASSIST_USE_MOCK=false`
 in `Client/.env`, then `cd Client; npm run dev`.
 
@@ -59,7 +62,7 @@ python -m app.ingest.run embed-status    # how much is left
 There is no test suite (removed on purpose). Checks run against the real Supabase, Gemini and Groq:
 ```powershell
 ruff check .
-python -m scripts.live_checks                  # groups: db retrieval products guard llm (default: all)
+python -m scripts.live_checks                  # groups: db retrieval products guard llm api (default: all)
 python -m scripts.live_checks db retrieval     # only some groups
 ```
 - `db`: documented columns, synonyms seeded, anon key locked out (`SUPABASE_ANON_KEY`), and with
@@ -78,5 +81,6 @@ the AWS / GitHub checklist will live in `docs/DEPLOY.md`.
 
 ## Known limits
 - Auth trusts the `X-User-Id` header, the same as the main PharmacyStore app (no real login tokens yet).
-- The rate limit is in memory per process.
+- The per-user limit (`RATE_LIMIT`) is counted in `chat_messages`; two questions sent at the same
+  moment can both pass. The per-IP guard (`IP_RATE_LIMIT`) is in memory per process.
 - Answers are general label information, never personal medical advice.

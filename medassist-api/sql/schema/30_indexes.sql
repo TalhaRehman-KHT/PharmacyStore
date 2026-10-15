@@ -6,6 +6,7 @@ CREATE INDEX alerts_user_id_idx ON public.alerts USING btree (user_id);
 CREATE INDEX cart_items_cart_id_idx ON public.cart_items USING btree (cart_id);
 CREATE INDEX carts_user_id_idx ON public.carts USING btree (user_id);
 CREATE INDEX chat_messages_session_created_idx ON public.chat_messages USING btree (session_id, created_at);
+CREATE INDEX chat_messages_user_created_idx ON public.chat_messages USING btree (user_id, created_at DESC) WHERE (role = 'user'::text);
 CREATE INDEX chat_sessions_user_updated_idx ON public.chat_sessions USING btree (user_id, updated_at DESC);
 CREATE INDEX drug_chunks_drug_name_idx ON public.drug_chunks USING btree (drug_name);
 CREATE INDEX drug_chunks_embedding_hnsw ON public.drug_chunks USING hnsw (embedding extensions.vector_cosine_ops);

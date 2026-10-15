@@ -14,14 +14,15 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 from app.api.deps import get_rag, get_repos
 from app.errors import BUSY_MESSAGE, Conflict, NotFound
 from app.llm.providers import AllProvidersBusy
+from app.observability import audit_logger, set_request_fields
 from app.rag.deps import RagDeps
-from app.rate_limit import ask_limit
+from app.rate_limit import ask_quota, ip_guard
 from app.repositories import Repos
 from app.repositories.escalations import EscalationScope
 from app.schemas.chat import AskRequest, AskResponse, ChatMessageOut, ChatSessionOut, FeedbackIn
@@ -32,8 +33,14 @@ from app.services import chat
 
 logger = logging.getLogger(__name__)
 
+async def _log_user(user: Annotated[CurrentUser, Depends(get_current_user)]) -> None:
+    """Dependency: put the caller's id on the request's access log line."""
+    set_request_fields(user_id=str(user.id))
+
+
+# ip_guard first: a flood is stopped before any database lookup.
 router = APIRouter(
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(ip_guard), Depends(get_current_user), Depends(_log_user)],
     responses={401: {"description": "Missing, invalid or expired token"}},
 )
 _STAFF = {"responses": {403: {"description": "Pharmacist access required"}}}
@@ -60,10 +67,11 @@ async def _check_pharmacy(repos: Repos, body: AskRequest) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "pharmacyId: unknown pharmacy")
 
 
-@router.post("/ask", response_model=AskResponse, tags=["chat"], **_OUT, **_ASK)
-@ask_limit
+@router.post(
+    "/ask", response_model=AskResponse, tags=["chat"], dependencies=[Depends(ask_quota)],
+    **_OUT, **_ASK,
+)
 async def ask(
-    request: Request,
     body: AskRequest,
     user: User,
     repos: ReposDep,
@@ -79,10 +87,14 @@ def _event(name: str, data) -> ServerSentEvent:
     return ServerSentEvent(event=name, data=json.dumps(data, separators=(",", ":")))
 
 
-@router.post("/ask/stream", response_class=EventSourceResponse, tags=["chat"], **_ASK)
-@ask_limit
+@router.post(
+    "/ask/stream",
+    response_class=EventSourceResponse,
+    tags=["chat"],
+    dependencies=[Depends(ask_quota)],
+    **_ASK,
+)
 async def ask_stream(
-    request: Request,
     body: AskRequest,
     user: User,
     repos: ReposDep,
@@ -195,6 +207,11 @@ async def reply_escalation(
 ) -> None:
     """Answer a pending escalation in your scope; the reply is added to the customer's chat."""
     await repos.answer_escalation(escalation_id, staff.id, body.reply, scope)
+    audit_logger.info(
+        "escalation_answered",
+        extra={"fields": {"staff_id": str(staff.id), "staff_role": staff.role,
+                          "escalation_id": str(escalation_id)}},
+    )
 
 
 @router.get("/insights", response_model=InsightsOut, tags=["escalations"], **_OUT, **_STAFF)

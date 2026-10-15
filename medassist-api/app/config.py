@@ -4,7 +4,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -62,7 +62,38 @@ class Settings(BaseSettings):
     emergency_number: str = "1122"
 
     cors_origins: list[str] = ["http://localhost:5173"]
+    # Questions per user, counted from chat_messages (app/rate_limit.py), so the limit survives
+    # restarts and is shared by every container. Syntax "<n>/<second|minute|hour|day>".
     rate_limit: str = "20/hour"
+    # Coarse per-IP abuse guard over the whole API (in memory, per process).
+    ip_rate_limit: str = "60/minute"
+
+    # Production
+    log_level: str = "INFO"
+    enable_docs: bool = False  # /docs + /openapi.json in prod (always on in dev)
+    api_prefix: str = ""  # e.g. "/medassist" when a load balancer routes by path
+
+    @field_validator("api_prefix")
+    @classmethod
+    def _prefix(cls, value: str) -> str:
+        """'' or '/name' (leading slash added, trailing slash removed)."""
+        value = value.strip().strip("/")
+        return f"/{value}" if value else ""
+
+    @model_validator(mode="after")
+    def _prod_rules(self) -> "Settings":
+        """In prod the browser origins must be real, explicit sites."""
+        if self.app_env == "prod":
+            bad = [o for o in self.cors_origins if "*" in o or "localhost" in o or "127.0.0.1" in o]
+            if not self.cors_origins or bad:
+                raise ValueError(
+                    "CORS_ORIGINS must list the real site origins in prod (no localhost, no *)"
+                )
+        return self
+
+    @property
+    def docs_enabled(self) -> bool:
+        return self.app_env == "dev" or self.enable_docs
 
 
 @lru_cache
@@ -72,7 +103,8 @@ def get_settings() -> Settings:
         return Settings()
     except ValidationError as exc:
         names = sorted({str(err["loc"][0]).upper() for err in exc.errors() if err["loc"]})
+        rules = [str(err["msg"]) for err in exc.errors() if not err["loc"]]  # _prod_rules
         raise RuntimeError(
-            "Missing or invalid settings: " + ", ".join(names) + ". Check medassist-api/.env "
-            "(see .env.example)."
+            "Missing or invalid settings: " + ", ".join(names + rules) + ". Check "
+            "medassist-api/.env (see .env.example)."
         ) from None

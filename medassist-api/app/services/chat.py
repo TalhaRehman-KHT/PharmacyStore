@@ -6,6 +6,7 @@ from uuid import UUID
 
 from app.graph import build
 from app.graph.answer import RagAnswer
+from app.observability import set_request_fields
 from app.rag.deps import RagDeps
 from app.repositories import Repos
 from app.schemas.chat import AnswerMeta, AskRequest, AskResponse
@@ -57,6 +58,7 @@ async def answer_stream(
         else:
             yield item
     assert result is not None  # the agent always ends with its RagAnswer
+    set_request_fields(route=result.route, tokens=result.tokens)  # access log line
     reason = result.escalation_reason
     latency_ms = int((time.perf_counter() - started) * 1000)
 

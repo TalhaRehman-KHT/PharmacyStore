@@ -16,6 +16,15 @@ class NotFound(Exception):
         self.message = message
 
 
+class TooManyRequests(Exception):
+    """A rate limit was hit (HTTP 429 with Retry-After, app/rate_limit.py)."""
+
+    def __init__(self, retry_after_s: int, message: str) -> None:
+        super().__init__(message)
+        self.retry_after_s = retry_after_s
+        self.message = message
+
+
 class Conflict(Exception):
     """The row is in a state that forbids the action, e.g. already answered (HTTP 409)."""
 
