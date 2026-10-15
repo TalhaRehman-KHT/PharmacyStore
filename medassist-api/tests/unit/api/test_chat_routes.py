@@ -9,10 +9,13 @@ import pytest
 
 from app.baseline import naive
 from app.errors import BUSY_MESSAGE
+from app.graph.nodes.escalate import ESCALATION_TEXT
+from app.graph.nodes.guard import EMERGENCY_TEXT
 from app.llm.providers import AllProvidersBusy
-from app.services import chat, precheck
+from app.services import chat
 from tests.fakes.rag import REPLY
 from tests.unit.api.helpers import ask, messages_of, parse_sse
+from tests.unit.graph.test_generate_build import SAFE
 
 SID = uuid4()
 ROUTES = [
@@ -61,7 +64,7 @@ def test_ask_creates_session_and_two_messages(client, db, make_user):
     ]
     meta = body["meta"]
     assert meta["route"] == "knowledge"
-    assert meta["tokens"] == 360  # agent: router + grade + answer (120 each)
+    assert meta["tokens"] == 480  # agent: guard + router + grade + answer (120 each)
     assert meta["escalated"] is False
     assert "escalationStatus" not in meta  # None fields are dropped
     assert isinstance(meta["latencyMs"], int)
@@ -77,7 +80,7 @@ def test_ask_creates_session_and_two_messages(client, db, make_user):
     assert bot_msg["id"] == meta["messageId"]
     assert (bot_msg["route"], bot_msg["variant"]) == ("knowledge", "agent")
     assert bot_msg["latency_ms"] == meta["latencyMs"]
-    assert bot_msg["tokens"] == 360
+    assert bot_msg["tokens"] == 480  # guard + router + grade + answer
     assert bot_msg["citations"] == body["citations"]
 
 
@@ -89,7 +92,7 @@ def test_naive_variant_is_still_callable(client, db, make_user, rag, path):
 
     assert res.status_code == 200
     assert db.rows("chat_messages")[-1]["variant"] == "naive"
-    assert rag.fast_llms == []  # the baseline has no router / rewrite / grade
+    assert len(rag.fast_llms) == 1  # only the safety guard; no router / rewrite / grade
 
 
 @pytest.mark.parametrize("path", ["/ask", "/ask/stream"])
@@ -121,6 +124,7 @@ def test_agent_product_question_returns_cards(client, db, make_user, rag):
         "drug_synonyms", brand_name="Panadol", generic_name="paracetamol", us_name="acetaminophen"
     )
     rag.fast_replies = [
+        SAFE,
         '{"route": "product", "language": "roman_urdu"}',
         '{"query": "acetaminophen"}',
     ]
@@ -141,14 +145,14 @@ def test_agent_product_question_returns_cards(client, db, make_user, rag):
 
 def test_agent_out_of_scope_needs_no_search(client, db, make_user, rag):
     _, headers = make_user()
-    rag.fast_replies = ['{"route": "out_of_scope", "language": "en"}']
+    rag.fast_replies = [SAFE, '{"route": "out_of_scope", "language": "en"}']
 
     body = ask(client, headers, "What is the weather today?").json()
 
     assert body["meta"]["route"] == "out_of_scope"
     assert body["answer"].startswith("I can only help with medicines")
     assert "products" not in body["meta"]
-    assert len(rag.fast_llms) == 1 and rag.llms == [] and rag.embedder.calls == []
+    assert len(rag.fast_llms) == 2 and rag.llms == [] and rag.embedder.calls == []
 
 
 def test_ask_reuses_own_session(client, db, make_user):
@@ -181,6 +185,8 @@ def test_dosing_question_escalates_with_pharmacy(client, db, make_user, rag):
     vendor = db.seed("users", name="Vendor", role="vendor", is_active=True)
     pharmacy = db.seed("pharmacies", vendor_id=vendor["id"], name="City Pharmacy")
 
+    rag.fast_replies = ['{"route": "knowledge", "language": "roman_urdu"}', '{"query": ""}']
+
     res = ask(client, headers, "Panadol kitni dose?", pharmacyId=pharmacy["id"])
 
     assert res.status_code == 200
@@ -189,9 +195,10 @@ def test_dosing_question_escalates_with_pharmacy(client, db, make_user, rag):
     assert meta["escalated"] is True
     assert meta["escalationReason"] == "personal_dosing"
     assert meta["escalationStatus"] == "pending"
-    assert res.json()["answer"] == precheck.ESCALATION_TEXT["roman_urdu"]  # "kitni" question
-    assert res.json()["citations"] == []
-    assert rag.llms == [] and rag.embedder.calls == []  # no retrieval, no LLM
+    # general label info (cited), then the pharmacist note; the guard rule needed no LLM
+    general, note = res.json()["answer"].split("\n\n")
+    assert general == "".join(REPLY) and note == ESCALATION_TEXT["roman_urdu"]
+    assert [c["n"] for c in res.json()["citations"]] == [1]
 
     [esc] = db.rows("escalations")
     assert esc["message_id"] == meta["messageId"]
@@ -207,11 +214,41 @@ def test_pregnancy_question_escalates_without_pharmacy(client, db, make_user):
 
     res = ask(client, headers, "Can I take this while pregnant?")
 
-    assert res.json()["answer"] == precheck.ESCALATION_TEXT["en"]  # English only
+    assert res.json()["answer"].endswith(ESCALATION_TEXT["en"])  # English only
 
     [esc] = db.rows("escalations")
     assert esc["reason"] == "pregnancy_or_child"
     assert esc["pharmacy_id"] is None
+
+
+@pytest.mark.parametrize("variant", ["agent", "naive"])
+def test_emergency_gets_the_fixed_text_and_no_escalation(client, db, make_user, rag, variant):
+    _, headers = make_user()
+
+    res = client.post(
+        f"/ask?variant={variant}", json={"question": "maine 20 goliyan kha li"}, headers=headers
+    )
+
+    body = res.json()
+    assert body["meta"]["route"] == "emergency"
+    assert body["answer"] == EMERGENCY_TEXT["roman_urdu"]
+    assert body["meta"]["escalated"] is False
+    assert db.rows("escalations") == []
+    assert rag.llms == [] and rag.embedder.calls == []
+
+
+def test_naive_risky_question_is_escalated_without_retrieval(client, db, make_user, rag):
+    _, headers = make_user()
+
+    res = client.post(
+        "/ask?variant=naive", json={"question": "Mujhe kitni dose leni chahiye?"}, headers=headers
+    )
+
+    assert res.json()["answer"] == ESCALATION_TEXT["roman_urdu"]
+    assert res.json()["meta"]["escalationReason"] == "personal_dosing"
+    [esc] = db.rows("escalations")
+    assert esc["reason"] == "personal_dosing"
+    assert rag.llms == [] and rag.embedder.calls == []
 
 
 def test_unknown_pharmacy_returns_422(client, db, make_user):
@@ -249,7 +286,7 @@ def test_naive_searches_with_the_previous_question(client, db, make_user, rag):
 
     client.post(
         "/ask?variant=naive",
-        json={"question": "And for children?", "sessionId": session_id},
+        json={"question": "And with alcohol?", "sessionId": session_id},
         headers=headers,
     )
 
@@ -258,9 +295,9 @@ def test_naive_searches_with_the_previous_question(client, db, make_user, rag):
     assert roles == ["SystemMessage", "HumanMessage", "AIMessage", "HumanMessage"]
     assert messages[1].content == "What is paracetamol?"
     assert "[1]" not in messages[2].content  # old citation markers removed
-    assert "<question>\nAnd for children?\n</question>" in messages[3].content
+    assert "<question>\nAnd with alcohol?\n</question>" in messages[3].content
     # the follow-up is searched together with the previous question
-    assert rag.embedder.calls[-1] == "What is paracetamol?\nAnd for children?"
+    assert rag.embedder.calls[-1] == "What is paracetamol?\nAnd with alcohol?"
 
 
 def test_history_is_only_from_the_same_session(client, db, make_user, rag):

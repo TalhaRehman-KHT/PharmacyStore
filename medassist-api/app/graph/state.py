@@ -9,7 +9,7 @@ import operator
 from typing import Annotated, Literal, TypedDict
 
 from app.llm.answer_prompt import Turn
-from app.schemas.common import Route
+from app.schemas.common import EscalationReason, Route
 
 # What the router decides. The state's `route` (schemas.common.Route, stored on the message) can
 # later also become emergency / escalated / no_evidence; those are set by other nodes.
@@ -49,11 +49,14 @@ class AgentState(TypedDict, total=False):
     graded_chunks: list  # SearchHit the grader kept (best first, at most rag.retrieve.TOP_K)
     product_results: list  # rows from graph/nodes/tools.py
 
-    # answer (G4 / V1)
+    # guard / escalate (V1)
+    safety: str  # emergency | personal_dosing | prescription_only | pregnancy_or_child | safe
+    escalation_reason: EscalationReason | None  # the risky safety category, else None
+    escalation_pharmacy_id: str | None  # escalate: which pharmacy's vendor sees the question
+
+    # answer (G4)
     answer: str
     citations: list
-    safety: str | None
-    escalation_reason: str | None
 
     # bookkeeping (added up, see the reducers)
     tokens: Annotated[int, operator.add]

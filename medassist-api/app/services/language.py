@@ -21,6 +21,8 @@ ROMAN_URDU_WORDS = frozenset(
     kar karo karna karein karen kr sakta sakti sakte saktay chahiye chahye lena leni lein
     doon dun diya aur bhi lekin agar phir
     dawa dawai goli raat subah shaam pait sar dard bukhar khana khane neend doodh paani
+    maine goliyan goliyaan golian kha khaa khayi liya rahi raha rahe saans seene behosh nigal
+    bacha bachay bache hamil
     """.split()
 )  # English look-alikes (do, use, main, jab, ya, ho, mat) are left out on purpose.
 _WORD = re.compile(r"[a-z]+")

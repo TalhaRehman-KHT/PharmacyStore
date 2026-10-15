@@ -205,6 +205,9 @@ def test_graph_is_compiled_once():
 # ---------- the whole graph ----------
 
 
+SAFE = '{"category": "safe"}'  # the guard's reply: every fast-LLM reply list starts with it
+
+
 def router(route: str, language: str = "en") -> str:
     return f'{{"route": "{route}", "language": "{language}"}}'
 
@@ -230,7 +233,7 @@ def shop() -> Shop:
 async def test_agent_knowledge_route(shop):
     rag = FakeRag(shop.db)
     rag.rows = [chunk_row(1, "ibuprofen", "Adverse Reactions")]
-    rag.fast_replies = [router("knowledge"), '{"grades": ["yes"]}']
+    rag.fast_replies = [SAFE, router("knowledge"), '{"grades": ["yes"]}']
 
     pieces, result = await run(rag, "What are the side effects of Brufen?")
 
@@ -241,14 +244,14 @@ async def test_agent_knowledge_route(shop):
     [brufen] = result.products
     assert (brufen.name, brufen.in_stock) == ("Brufen 400mg", False)
     assert "shop" not in result.text
-    assert result.tokens == 360  # router + grade + answer; English first question: no rewrite LLM
+    assert result.tokens == 480  # guard + router + grade + answer; no rewrite LLM (English)
     assert rag.embedder.calls == ["What are the side effects of Brufen? (ibuprofen)"]
     assert rag.searches[0]["drug_filter"] == "ibuprofen"
 
 
 async def test_agent_product_route_shows_a_real_card_without_search(shop):
     rag = FakeRag(shop.db)
-    rag.fast_replies = [router("product", "roman_urdu"), '{"query": "acetaminophen stock"}']
+    rag.fast_replies = [SAFE, router("product", "roman_urdu"), '{"query": "acetaminophen stock"}']
 
     pieces, result = await run(rag, "Panadol stock hai?", pharmacy_id=shop.city)
 
@@ -265,6 +268,7 @@ async def test_agent_both_route_runs_tools_and_retrieval(shop):
     rag = FakeRag(shop.db)
     rag.rows = [chunk_row(1, "ibuprofen", "Drug Interactions")]
     rag.fast_replies = [
+        SAFE,
         router("both", "roman_urdu"),
         '{"query": "ibuprofen acetaminophen together", "drugs": []}',
         '{"grades": ["yes"]}',
@@ -284,7 +288,7 @@ async def test_agent_both_route_runs_tools_and_retrieval(shop):
 async def test_agent_both_without_evidence_retries_once_and_keeps_products(shop):
     rag = FakeRag(shop.db)
     rag.rows = []
-    rag.fast_replies = [router("both"), '{"query": "broader query"}']
+    rag.fast_replies = [SAFE, router("both"), '{"query": "broader query"}']
 
     _, result = await run(rag, "Is Panadol safe with alcohol, and do you have it?")
 
@@ -298,7 +302,7 @@ async def test_agent_both_without_evidence_retries_once_and_keeps_products(shop)
 async def test_agent_knowledge_without_evidence_shows_no_cards(shop):
     rag = FakeRag(shop.db)
     rag.rows = []
-    rag.fast_replies = [router("knowledge"), '{"query": "broader query"}']
+    rag.fast_replies = [SAFE, router("knowledge"), '{"query": "broader query"}']
 
     _, result = await run(rag, "Can I take Panadol with alcohol?")
 
@@ -309,19 +313,19 @@ async def test_agent_knowledge_without_evidence_shows_no_cards(shop):
 
 async def test_agent_out_of_scope_route(shop):
     rag = FakeRag(shop.db)
-    rag.fast_replies = [router("out_of_scope", "roman_urdu")]
+    rag.fast_replies = [SAFE, router("out_of_scope", "roman_urdu")]
 
     pieces, result = await run(rag, "aaj mausam kaisa hai?")
 
     assert result.route == "out_of_scope"
     assert result.text == OUT_OF_SCOPE_TEXT["roman_urdu"] == "".join(pieces)
-    assert len(rag.fast_llms) == 1 and rag.embedder.calls == [] and rag.llms == []
-    assert result.tokens == 120
+    assert len(rag.fast_llms) == 2 and rag.embedder.calls == [] and rag.llms == []
+    assert result.tokens == 240  # guard + router
 
 
 async def test_run_agent_returns_only_the_answer(shop):
     rag = FakeRag(shop.db)
-    rag.fast_replies = [router("out_of_scope")]
+    rag.fast_replies = [SAFE, router("out_of_scope")]
     result = await build.run_agent("tell me a joke", rag.deps())
     assert result.text == OUT_OF_SCOPE_TEXT["en"]
 

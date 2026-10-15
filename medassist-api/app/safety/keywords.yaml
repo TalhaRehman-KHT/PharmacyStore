@@ -1,5 +1,50 @@
-# Safety keyword lists used by the guard node. Stub: filled in Stage 7 (safety).
-emergency: []
-dosing: []
-prescription_only: []
-pregnancy_or_child: []
+# Safety rules of the guard node, layer 1 (app/graph/nodes/guard.py). English + Roman Urdu.
+#
+# Each category is a list of rules, checked on the lowercased question:
+#   - a string: one regex; it matches on its own
+#   - a list: several regexes that must ALL match (e.g. "a personal word" AND "an amount word")
+# Every regex is wrapped as \b(?:...)\b, so "dose" never matches inside "overdose".
+# $personal is replaced by the `personal` marker below.
+# Categories are checked in this order; the first rule that matches wins. No match -> layer 2 (LLM).
+# Keep rules PRECISE: a rule hit skips the LLM. Unsure wording belongs to the LLM, not here.
+
+markers:
+  # the question is about the asker or someone in their care. Not "me": Roman Urdu "me" = "in"
+  personal: 'i|i''m|im|i''ve|my|mujhe|mujhy|muje|mujhay|mera|meri|mere|meray|maine|hum|hamein|humein|hamara|hamari|hamare'
+
+emergency:
+  # someone already took too much
+  - 'took (?:an |a )?overdose|overdosed|overdose (?:kar|le) (?:li|lee|liya|lia)'
+  - '(?:took|swallowed|ate|have taken|i''ve taken) (?:\d{2,}|too many|a lot of|all (?:of )?(?:the|my)|the whole|a whole)'
+  - '\d{2,} (?:goli|goliyan|goliyaan|golian|tablets?|pills?|capsules?)\b.{0,20}\b(?:kha|khaa|le|nigal) ?(?:li|lin|lee|liya|lia|gaya|gayi|gai)'
+  - '(?:sari|saari|bohat|bahut|poori|puri) (?:si )?(?:goli|goliyan|goliyaan|golian|tablets|pills|dawa|dawai)\b.{0,20}\b(?:kha|khaa|le|nigal) ?(?:li|lin|lee|liya|lia|gaya|gayi|gai)'
+  - ['child|kid|son|daughter|baby|toddler|bacha|bachay|bache|bachy|bachi|bachcha|bachche|beta|beti', 'swallowed|nigal (?:li|liya|lia|gaya|gayi|gai)']
+  # self-harm
+  - 'suicid\w*|kill myself|end my life|khud ?kushi|khudkhushi|marna chahta|marna chahti|jaan de (?:dun|doon|du)'
+  # acute symptoms happening to the asker (or someone with them) right now
+  - ['$personal', 'chest pain|(?:seene|seenay|sine) (?:mein|me|main) (?:dard|tez dard)|dil (?:mein|me) dard']
+  - ['$personal', 'can''?t breathe|cannot breathe|can not breathe|(?:trouble|difficulty) breathing|saans (?:nahi|nahin) (?:aa|a) (?:rahi|raha)|saans lene (?:mein|me) (?:mushkil|dikkat|takleef)']
+  - ['$personal', 'unconscious|passed out|fainted|not waking up|behosh|seizure|fits? (?:aa|a) (?:rahe|gaye|gae)|daura (?:para|pada|par gaya|pad gaya)']
+  - ['$personal', '(?:throat|face|lips?|tongue|gala|gale|honth|hont|chehra|chehre|zaban)\b.{0,25}\b(?:swell\w*|swollen|sooj\w*)']
+
+personal_dosing:
+  # Roman Urdu "kitni dose / kitni goliyan / kitni dafa / kitna lena": always an amount for the asker.
+  # "kitni der" (how long until it works) is not here, so it stays general.
+  - 'kitn[ia](?: \w+){0,2}? (?:dose|doses|goli|goliyan|goliyaan|tablet|tablets|capsule|mg|ml|chamach|spoon|leni|lena|lun|loon|deni|dena|dun|doon|dafa|daffa|bar|baar|martaba)'
+  - 'dose\b.{0,20}\bkitn[ia]'
+  # an amount word next to a personal word: "how much should I take", "my dose"
+  - ['$personal', 'dose|doses|dosage|dosing|how much|how many|how often']
+  - 'double (?:the |my )?dose|dose (?:double|dugni|barha|badha)\w*|can i take (?:another|more|extra|a second|two more)'
+  # body weight in a question = a dose for this person
+  - '\d+ ?(?:kg|kgs|kilo|kilos)'
+
+prescription_only:
+  - 'without (?:a )?(?:prescription|doctor''?s? (?:note|slip|prescription))|no prescription|prescription (?:required|only|needed)'
+  - 'need (?:a )?prescription|bina (?:prescription|nuskh\w*|parchi|parchay)|(?:prescription|nuskh\w*|parchi|parchay) ke (?:baghair|bagair|bina)'
+  - '(?:prescription|nuskh\w*|parchi) (?:ki )?zaroorat'
+  - '(?:buy|get|order|kharid\w*|mil sakt\w*)\b.{0,30}\b(?:alprazolam|xanax|tramadol|codeine|diazepam|valium|clonazepam|rivotril|lorazepam|ativan|oxycodone|morphine)'
+
+pregnancy_or_child:
+  - 'pregnan\w*|hamil\w*|haamil\w*|breast[\s-]?feed\w*|(?:doodh|dudh) pila\w*|lactat\w*|nursing mother'
+  - 'child|children|kid|kids|baby|babies|infant|infants|toddler|newborn|bacha|bachay|bache|bachy|bachon|bachi|bachiyon|bachcha|bachche|bachchon'
+  - '\d+ ?(?:saal|sal|year|yr|month|mahine|mahiney) (?:ka|ki|ke|old)\b|years? old|months? old'

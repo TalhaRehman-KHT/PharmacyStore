@@ -1,11 +1,19 @@
 """Graph wiring: the nodes and edges of the LangGraph agent, compiled ONCE, and the runners.
 
-    START -> router -+-> out_of_scope -> END                     (weather, jokes ...)
-                     +-> rewrite -+-> retrieve -> grade -+-> generate -> END
-                                  |                      +-> rewrite      (nothing kept, retry once)
-                                  |                      +-> no_evidence -> END
-                                  +-> tools -+-> generate -> END          (route product)
-                                             +-> END (both / knowledge: retrieve's path answers)
+    START -> guard -+-> emergency -> END                    (fixed text, no LLM)
+                    +-> router -+-> out_of_scope -> END     (weather, jokes ...)
+                                +-> rewrite -+-> retrieve -> grade -+-> generate ---+-> END
+                                             |                      +-> rewrite     |
+                                             |                      +-> no_evidence +-> escalate
+                                             +-> tools -+-> generate (product)   (risky) -> END
+                                                        +-> END (both / knowledge)
+
+  grade -> rewrite is the one retry; "both / knowledge": the retrieve path answers.
+
+- guard (V1) runs first: rules, then the fast LLM. A risky question (personal dosing,
+  prescription-only, pregnancy or child) still takes the normal path for GENERAL cited label info;
+  escalate then adds the pharmacist note, and services/chat.py writes the escalation row. A risky
+  question is never refused as out of scope.
 
 - rewrite comes before tools too: tools needs the drug names (Panadol -> acetaminophen).
 - "both", and "knowledge" about a named drug, fan out: tools and retrieve run in the SAME step
@@ -22,7 +30,8 @@
 Runners: stream_agent() yields answer text pieces, then one RagAnswer (the shape the naive
 baseline returns, so services/chat.py treats both variants the same); run_agent() returns only
 the RagAnswer. LLM text streams live from the generate node (custom stream events); fixed texts
-(product list, no evidence, out of scope) are sent word by word when the graph has finished.
+(product list, no evidence, out of scope, emergency, escalation note) are sent word by word when
+the graph has finished.
 
 Tracing: with LANGSMITH_API_KEY set, enable_tracing() switches LangSmith on, and LangGraph traces
 every node of every run (project LANGSMITH_PROJECT).
@@ -41,8 +50,10 @@ from langgraph.runtime import Runtime
 
 from app.baseline.naive import RagAnswer
 from app.config import Settings
+from app.graph.nodes.escalate import escalate
 from app.graph.nodes.generate import generate
 from app.graph.nodes.grade import after_grade, grade
+from app.graph.nodes.guard import RISKY, emergency, guard
 from app.graph.nodes.no_evidence import no_evidence
 from app.graph.nodes.out_of_scope import out_of_scope
 from app.graph.nodes.retrieve import retrieve
@@ -68,6 +79,11 @@ Ctx = Runtime[AgentContext]
 
 
 # ---------- nodes: wrappers that hand the pure node functions their dependencies ----------
+
+
+async def guard_node(state: AgentState, runtime: Ctx) -> dict:
+    """Guard (graph/nodes/guard.py): safety category + escalation reason."""
+    return await guard(state, llm_factory=runtime.context.deps.fast_llm)
 
 
 async def router_node(state: AgentState, runtime: Ctx) -> dict:
@@ -109,9 +125,17 @@ async def generate_node(state: AgentState, runtime: Ctx) -> dict:
 # ---------- edges ----------
 
 
+def after_guard(state: AgentState) -> Literal["emergency", "router"]:
+    """An emergency gets the fixed emergency text at once; everything else goes on."""
+    return "emergency" if state.get("safety") == "emergency" else "router"
+
+
 def after_router(state: AgentState) -> Literal["out_of_scope", "rewrite"]:
-    """Out of scope stops here; every medicine question needs the rewrite (drug names) first."""
-    return "out_of_scope" if state.get("route") == "out_of_scope" else "rewrite"
+    """Out of scope stops here (never for a risky question: the guard found a medicine risk);
+    every medicine question needs the rewrite (drug names) first."""
+    if state.get("route") == "out_of_scope" and not state.get("escalation_reason"):
+        return "out_of_scope"
+    return "rewrite"
 
 
 def after_rewrite(state: AgentState) -> list[str]:
@@ -126,6 +150,11 @@ def after_rewrite(state: AgentState) -> list[str]:
     return ["retrieve"]
 
 
+def after_answer(state: AgentState) -> str:
+    """generate / no_evidence -> escalate for a risky question, else the end."""
+    return "escalate" if state.get("escalation_reason") in RISKY else END
+
+
 def after_tools(state: AgentState) -> str:
     """product -> generate; both / knowledge -> this branch ends (the retrieve branch answers)."""
     return "generate" if state.get("route") == "product" else END
@@ -135,6 +164,8 @@ def after_tools(state: AgentState) -> str:
 def agent_graph():
     """The compiled agent graph (built once per process)."""
     g = StateGraph(AgentState, context_schema=AgentContext)
+    g.add_node("guard", guard_node)
+    g.add_node("emergency", emergency)
     g.add_node("router", router_node)
     g.add_node("out_of_scope", out_of_scope)
     g.add_node("rewrite", rewrite_node)
@@ -143,15 +174,19 @@ def agent_graph():
     g.add_node("tools", tools_node)
     g.add_node("generate", generate_node)
     g.add_node("no_evidence", no_evidence)
+    g.add_node("escalate", escalate)
 
-    g.add_edge(START, "router")
+    g.add_edge(START, "guard")
+    g.add_conditional_edges("guard", after_guard, ["emergency", "router"])
     g.add_conditional_edges("router", after_router, ["out_of_scope", "rewrite"])
     g.add_conditional_edges("rewrite", after_rewrite, ["tools", "retrieve"])
     g.add_edge("retrieve", "grade")
     g.add_conditional_edges("grade", after_grade, ["generate", "rewrite", "no_evidence"])
     g.add_conditional_edges("tools", after_tools, ["generate", END])
-    g.add_edge("generate", END)
-    g.add_edge("no_evidence", END)
+    g.add_conditional_edges("generate", after_answer, ["escalate", END])
+    g.add_conditional_edges("no_evidence", after_answer, ["escalate", END])
+    g.add_edge("escalate", END)
+    g.add_edge("emergency", END)
     g.add_edge("out_of_scope", END)
     return g.compile(name="medassist-agent")
 
@@ -219,17 +254,21 @@ async def stream_agent(
     else:  # cannot happen with the hold-back rule; the stored answer is still the full one
         logger.warning("agent answer does not continue the streamed text")
     logger.info(
-        "agent route=%s tokens=%s timings=%s",
+        "agent route=%s safety=%s tokens=%s timings=%s",
         final.get("route"),
+        final.get("safety"),
         final.get("tokens"),
         final.get("timings"),
     )
+    escalated = final.get("route") == "escalated"
     yield RagAnswer(
         text=answer,
         route=final.get("route", "no_evidence"),
         citations=final.get("citations") or [],
         tokens=final.get("tokens") or None,  # 0 = no LLM call
         products=final.get("product_results") or [],
+        escalation_reason=final.get("escalation_reason") if escalated else None,
+        pharmacy_id=final.get("escalation_pharmacy_id"),
     )
 
 

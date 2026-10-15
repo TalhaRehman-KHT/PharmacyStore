@@ -22,7 +22,7 @@ from app.rag.retrieve import retrieve
 from app.rag.search import SearchHit
 from app.repositories.knowledge import source_urls
 from app.schemas.chat import Citation, ProductCard
-from app.schemas.common import Route
+from app.schemas.common import EscalationReason, Route
 from app.services.language import Language, detect_language
 
 # Shown instead of an uncited answer, in the language of the question.
@@ -45,6 +45,9 @@ class RagAnswer:
     citations: list[Citation] = field(default_factory=list)
     tokens: int | None = None  # input + output tokens of the LLM call (None: no call)
     products: list[ProductCard] = field(default_factory=list)  # agent only (shop cards)
+    # set when the answer must go to a pharmacist (services/chat.py writes the escalation row)
+    escalation_reason: EscalationReason | None = None
+    pharmacy_id: str | None = None  # agent: the pharmacy found for the escalation
 
 
 def used_numbers(text: str, n_chunks: int) -> list[int]:
