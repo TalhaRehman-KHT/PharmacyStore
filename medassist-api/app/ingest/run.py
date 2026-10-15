@@ -2,11 +2,14 @@
 
 Run with: python -m app.ingest.run <command>
   drug-list   build data/drugs.txt from the shop's medicines table (read-only)
-  download    one FDA label per drug -> data/raw/, data/missing.txt
-              [--force] [--limit N] [--no-key]
+  download    one FDA label per drug (oral preferred) -> data/raw/, data/missing.txt
+              [--force] [--limit N] [--no-key] [--drugs a,b,c]
+  label-routes  saved labels whose route is not ORAL (read-only, no requests)
   chunk       data/raw/*.json -> data/chunks/chunks.jsonl, data/chunk_report.md
+              [--drugs a,b,c = re-chunk only these, keep the other rows as they are]
   embed-load  chunks.jsonl -> Gemini vectors -> drug_documents + drug_chunks
               [--limit N documents] [--drugs a,b,c] [--dry-run] [--delay S]
+              [--resume = skip documents already fully embedded with this model; priority order]
   embed-status  documents/chunks in file vs DB, remaining, rows per embedding model (read-only)
 """
 
@@ -37,18 +40,34 @@ async def _download(args: argparse.Namespace) -> None:
     key = None if args.no_key else get_settings().openfda_api_key
     print(f"OPENFDA_API_KEY: {'set' if key else 'not used (1000 requests/day limit)'}")
     r = await run(
-        api_key=key.get_secret_value() if key else None, force=args.force, limit=args.limit
+        api_key=key.get_secret_value() if key else None,
+        force=args.force,
+        limit=args.limit,
+        only=_names(args.drugs),
     )
     print(
-        f"downloaded: {len(r.downloaded)} | skipped: {len(r.skipped)} | missing: {len(r.missing)}"
+        f"downloaded: {len(r.downloaded)} ({', '.join(r.downloaded) or '-'}) | "
+        f"skipped: {len(r.skipped)} | missing: {len(r.missing)}"
     )
-    print("wrote data/raw/*.json and data/missing.txt")
+    print("wrote data/raw/*.json" + ("" if args.drugs else " and data/missing.txt"))
+    await _label_routes(args)
 
 
-async def _chunk(_args: argparse.Namespace) -> None:
+async def _label_routes(_args: argparse.Namespace) -> None:
+    from app.ingest.openfda import ROUTE, route_report
+
+    rows = route_report()
+    print(f"labels whose route is not {ROUTE} ({len(rows)}):")
+    for drug, routes in rows:
+        print(f"  {drug}: {', '.join(routes) or 'no route'}")
+
+
+async def _chunk(args: argparse.Namespace) -> None:
     from app.ingest.chunker import run
 
-    r = run()
+    r = run(only=_names(args.drugs))
+    if args.drugs:
+        print(f"re-chunked only: {args.drugs} (other documents unchanged)")
     print(
         f"documents: {r['documents']} | chunks: {r['chunks']} | "
         f"chars min {r['min_chars']} / max {r['max_chars']}"
@@ -64,6 +83,9 @@ async def _embed_load(args: argparse.Namespace) -> None:
     from app.rag.model_guard import EmbeddingModelMismatch
 
     settings = get_settings()
+    if args.resume:
+        await _resume(args, settings)
+        return
     if args.drugs:
         docs, unknown = select_drugs(read_chunks(CHUNKS_FILE), args.drugs.split(","))
         if unknown:
@@ -111,6 +133,48 @@ async def _embed_load(args: argparse.Namespace) -> None:
         )
 
 
+async def _resume(args: argparse.Namespace, settings) -> None:
+    """embed-load --resume: only unfinished documents, priority order, one summary line."""
+    import httpx
+
+    from app.ingest.load import CHUNKS_FILE, load, read_chunks
+    from app.ingest.resume import pending
+    from app.rag.embed import embedder_from_settings
+    from app.rag.model_guard import EmbeddingModelMismatch
+
+    model = settings.gemini_embed_model
+    db = await create_db(settings)
+    everything = read_chunks(CHUNKS_FILE)
+    docs = await pending(db, everything, model)
+    if args.limit is not None:
+        docs = dict(list(docs.items())[: args.limit])
+    if not docs:
+        print(f"nothing to do: all {len(everything)} documents are loaded with {model}")
+        return
+    names = [c[0]["drug_name"] for c in docs.values()]
+    print(
+        f"to do: {len(docs)} documents, {sum(map(len, docs.values()))} chunks "
+        f"(first: {', '.join(names[:8])}{' ...' if len(names) > 8 else ''})"
+    )
+    async with httpx.AsyncClient(timeout=60) as client:
+        embedder = embedder_from_settings(client, settings, delay=args.delay)
+        try:
+            r = await load(db, embedder, docs)
+        except EmbeddingModelMismatch as exc:
+            raise SystemExit(f"STOPPED: {exc}") from None
+    print(
+        f"API calls: {r.api_calls} | cache hits: {r.cache_hits} | inserted chunks: {r.inserted}"
+        + (f" | replaced old labels: {len(r.replaced)}" if r.replaced else "")
+    )
+    if r.quota_stop:
+        print(
+            f"{r.documents_loaded} done today, {r.chunks_waiting} chunks remaining, "
+            "run again tomorrow"
+        )
+    else:
+        print(f"{r.documents_loaded} done, {r.chunks_waiting} chunks remaining")
+
+
 async def _embed_status(_args: argparse.Namespace) -> None:
     from app.ingest.load import CHUNKS_FILE, read_chunks
     from app.ingest.status import embed_status, render
@@ -120,9 +184,15 @@ async def _embed_status(_args: argparse.Namespace) -> None:
     print(render(await embed_status(db, read_chunks(CHUNKS_FILE)), settings.gemini_embed_model))
 
 
+def _names(drugs: str | None) -> list[str] | None:
+    """'a, b' -> ['a', 'b']; None stays None (= all drugs)."""
+    return None if drugs is None else [d.strip() for d in drugs.split(",") if d.strip()]
+
+
 COMMANDS = {
     "drug-list": lambda _args: _drug_list(),
     "download": _download,
+    "label-routes": _label_routes,
     "chunk": _chunk,
     "embed-load": _embed_load,
     "embed-status": _embed_status,
@@ -141,7 +211,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--drugs",
-        help="embed-load: only these generic names, comma-separated (e.g. ibuprofen,metformin)",
+        help="download / chunk / embed-load: only these generic names, comma-separated "
+        "(e.g. ibuprofen,metformin)",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="embed-load: skip documents already fully embedded with this model; priority order",
     )
     parser.add_argument(
         "--dry-run", action="store_true", help="embed-load: embed only, write nothing to the DB"

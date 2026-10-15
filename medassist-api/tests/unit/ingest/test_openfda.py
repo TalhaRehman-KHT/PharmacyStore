@@ -5,15 +5,22 @@ import json
 import httpx
 import pytest
 
-from app.ingest.openfda import download, pick_label, queries, slug
+from app.ingest.openfda import download, pick_label, queries, route_report, slug
 
 
-def label(generic: str, *, effective: str = "20240101", sections: int = 3, id_: str = "L1") -> dict:
+def label(
+    generic: str,
+    *,
+    effective: str = "20240101",
+    sections: int = 3,
+    id_: str = "L1",
+    route: str = "ORAL",
+) -> dict:
     fields = ["boxed_warning", "indications_and_usage", "adverse_reactions", "drug_interactions"]
     return {
         "id": id_,
         "effective_time": effective,
-        "openfda": {"generic_name": [generic.upper()]},
+        "openfda": {"generic_name": [generic.upper()], "route": [route]},
         **{f: ["text"] for f in fields[:sections]},
     }
 
@@ -28,9 +35,11 @@ def results(*labels) -> httpx.Response:
 
 def test_slug_and_queries():
     assert slug("Amoxicillin and Clavulanate Potassium") == "amoxicillin-and-clavulanate-potassium"
-    exact, phrase = queries("acetaminophen")
+    oral_exact, oral_phrase, exact, phrase = queries("acetaminophen")
     assert exact == 'openfda.generic_name.exact:"ACETAMINOPHEN"'
     assert phrase == 'openfda.generic_name:"acetaminophen"'
+    assert oral_exact == f'{exact} AND openfda.route:"ORAL"'
+    assert oral_phrase == f'{phrase} AND openfda.route:"ORAL"'
 
 
 def test_pick_label_prefers_exact_then_sections_then_newest():
@@ -40,6 +49,41 @@ def test_pick_label_prefers_exact_then_sections_then_newest():
     few = label("acetaminophen", sections=1, effective="20250101", id_="few")
     assert pick_label([combo, old, new, few], "acetaminophen")["id"] == "new"
     assert pick_label([], "acetaminophen") is None
+
+
+def test_pick_label_prefers_oral_and_single_ingredient():
+    eye = label("cetirizine", sections=4, effective="20260101", id_="eye", route="OPHTHALMIC")
+    tab = label("cetirizine", sections=2, id_="tab")
+    assert pick_label([eye, tab], "cetirizine")["id"] == "tab"
+    combo = label("diclofenac sodium/misoprostol", sections=4, id_="combo")
+    plain = label("diclofenac sodium", sections=2, id_="plain")
+    assert pick_label([combo, plain], "diclofenac")["id"] == "plain"
+    # no oral label at all (insulin): the injection label is still taken
+    pen = label("insulin glargine", id_="pen", route="SUBCUTANEOUS")
+    assert pick_label([pen], "insulin glargine")["id"] == "pen"
+
+
+async def test_oral_search_first_then_any_route(tmp_path):
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req.url.params["search"])
+        if "openfda.route" in req.url.params["search"]:
+            return httpx.Response(404)
+        return results(label("insulin glargine", route="SUBCUTANEOUS"))
+
+    async with mock_client(handler) as client:
+        r = await download(client, ["insulin glargine"], tmp_path, delay=0)
+
+    assert r.downloaded == ["insulin glargine"]
+    assert seen == queries("insulin glargine")[:3]  # 2 oral searches found nothing, then plain
+
+
+def test_route_report_lists_non_oral_labels(tmp_path):
+    for drug, route in [("cetirizine", "OPHTHALMIC"), ("ibuprofen", "ORAL")]:
+        record = {"drug": drug, "label": label(drug, route=route)}
+        (tmp_path / f"{drug}.json").write_text(json.dumps(record), encoding="utf-8")
+    assert route_report(tmp_path) == [("cetirizine", ["OPHTHALMIC"])]
 
 
 async def test_downloads_saves_record_and_reports(tmp_path):
@@ -56,7 +100,7 @@ async def test_downloads_saves_record_and_reports(tmp_path):
     saved = json.loads((tmp_path / "ibuprofen.json").read_text(encoding="utf-8"))
     assert saved["drug"] == "ibuprofen"
     assert saved["label"]["id"] == "ibu"
-    assert saved["query"] == 'openfda.generic_name.exact:"IBUPROFEN"'
+    assert saved["query"] == 'openfda.generic_name.exact:"IBUPROFEN" AND openfda.route:"ORAL"'
     assert seen[0]["limit"] == "10" and "api_key" not in seen[0]
 
 

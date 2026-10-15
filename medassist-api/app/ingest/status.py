@@ -21,12 +21,14 @@ class EmbedStatus:
     loaded: list[str] = field(default_factory=list)  # generic names in the DB
     waiting: list[str] = field(default_factory=list)  # in the file, not in the DB yet
     chunks_waiting: int = 0
+    stale: list[str] = field(default_factory=list)  # in the DB, label no longer in the file
 
 
 async def embed_status(db, docs: dict[str, list[dict]]) -> EmbedStatus:
     """Compare the chunk file (label_id -> chunks) with drug_documents / drug_chunks."""
     counts = await kb_counts(db)
-    in_db = {d["label_id"] for d in await list_documents(db)}
+    db_docs = await list_documents(db)
+    in_db = {d["label_id"] for d in db_docs}
     names = {label: chunks[0]["drug_name"] for label, chunks in docs.items()}
     waiting = [label for label in docs if label not in in_db]
     return EmbedStatus(
@@ -39,6 +41,9 @@ async def embed_status(db, docs: dict[str, list[dict]]) -> EmbedStatus:
         loaded=sorted(names[label] for label in docs if label in in_db),
         waiting=sorted(names[label] for label in waiting),
         chunks_waiting=sum(len(docs[label]) for label in waiting),
+        stale=sorted(
+            f"{d['generic_name']} ({d['label_id']})" for d in db_docs if d["label_id"] not in docs
+        ),
     )
 
 
@@ -56,6 +61,8 @@ def render(s: EmbedStatus, expected_model: str) -> str:
         f"loaded ({len(s.loaded)}): {', '.join(s.loaded) or '-'}",
         f"not loaded ({len(s.waiting)}): {', '.join(s.waiting) or '-'}",
     ]
+    if s.stale:
+        lines.append(f"old labels in DB (replaced when the new label loads): {', '.join(s.stale)}")
     other = [m for m in s.models if m is not None and m != expected_model]
     if other:
         lines.append(f"WARNING: other models in the DB: {', '.join(other)} (search will refuse)")

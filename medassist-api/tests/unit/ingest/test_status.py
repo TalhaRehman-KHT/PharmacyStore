@@ -27,5 +27,12 @@ async def test_status_counts_remaining_and_models(monkeypatch):
     text = status.render(s, MODEL)
     assert "remaining: 2" in text and "remaining: 6" in text
     assert "untagged (pre-F5): 1" in text and "WARNING" not in text
+    assert "old labels" not in text
+    db.seed("drug_documents", label_id="OLD", generic_name="drug-L2")  # replaced label
+    s = await status.embed_status(db, docs_of({"L1": 3, "L2": 4, "L3": 2}))
+    assert s.stale == ["drug-L2 (OLD)"]
+    assert "old labels in DB (replaced when the new label loads): drug-L2 (OLD)" in status.render(
+        s, MODEL
+    )
     s.models["other"] = 1
     assert "WARNING: other models in the DB: other" in status.render(s, MODEL)

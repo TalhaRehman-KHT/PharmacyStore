@@ -150,3 +150,29 @@ async def test_quota_stop_loads_only_fully_embedded_documents_then_resumes(tmp_p
     assert not report.quota_stop and report.cache_hits == 3
     assert (report.documents_loaded, report.documents_waiting) == (3, 0)
     assert len(db.rows("drug_documents")) == 3 and len(db.rows("drug_chunks")) == 9
+
+
+async def test_new_label_replaces_the_old_label_of_the_same_drug(tmp_path):
+    db = FakeSupabase()
+    eye = [chunk_row("EYE", i) for i in range(2)]
+    for c in eye:
+        c["drug_name"] = c["document"]["generic_name"] = "cetirizine"
+    await load(db, FakeGemini().embedder(cache_dir=tmp_path), {"EYE": eye})
+    other = await load(db, FakeGemini().embedder(cache_dir=tmp_path), docs_of({"L9": 1}))
+    assert other.replaced == []  # another drug never deletes anything
+
+    tab = [chunk_row("TAB", i, "tablet") for i in range(3)]
+    for c in tab:
+        c["drug_name"] = c["document"]["generic_name"] = "cetirizine"
+    report = await load(db, FakeGemini().embedder(cache_dir=tmp_path), {"TAB": tab})
+
+    assert report.replaced == ["EYE"]
+    assert sorted(d["label_id"] for d in db.rows("drug_documents")) == ["L9", "TAB"]
+    assert len(db.rows("drug_chunks")) == 4  # 3 TAB + 1 L9; the EYE chunks went by cascade
+
+
+async def test_chunks_waiting_counts_unloaded_chunks(tmp_path):
+    emb = DailyLimitGemini(allowed=4).embedder(cache_dir=tmp_path)
+    emb.batch_size = 3
+    report = await load(FakeSupabase(), emb, docs_of({"L1": 3, "L2": 3, "L3": 2}))
+    assert (report.documents_loaded, report.chunks_waiting) == (1, 5)

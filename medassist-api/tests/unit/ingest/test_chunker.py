@@ -160,6 +160,28 @@ def test_run_writes_jsonl_and_report(tmp_path, monkeypatch):
     assert (tmp_path / "chunk_report.md").exists()
 
 
+def test_run_only_rechunks_the_named_drugs(tmp_path, monkeypatch):
+    raw, out = tmp_path / "raw", tmp_path / "chunks"
+    raw.mkdir()
+    monkeypatch.setattr("app.ingest.chunker.DATA_DIR", tmp_path)
+    for drug in ("cetirizine", "ibuprofen"):
+        rec = {**record(warnings="Old text."), "drug": drug}
+        (raw / f"{drug}.json").write_text(json.dumps(rec), encoding="utf-8")
+    run(raw, out)
+    before = (out / "chunks.jsonl").read_text("utf-8").splitlines()
+
+    # both raw files change, but only cetirizine is re-chunked
+    for drug in ("cetirizine", "ibuprofen"):
+        rec = {**record(warnings="New text."), "drug": drug}
+        (raw / f"{drug}.json").write_text(json.dumps(rec), encoding="utf-8")
+    run(raw, out, only=["Cetirizine"])
+
+    after = (out / "chunks.jsonl").read_text("utf-8").splitlines()
+    rows = {json.loads(line)["drug_name"]: json.loads(line)["content"] for line in after}
+    assert "New text." in rows["cetirizine"] and "Old text." in rows["ibuprofen"]
+    assert after[1] == before[1]  # the untouched drug's line is byte-identical (same cache key)
+
+
 def test_heading_only_section_is_skipped_but_short_answer_kept():
     rec = record(
         indications_and_usage="SUGGESTED USE:",

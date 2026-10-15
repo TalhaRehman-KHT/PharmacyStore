@@ -19,6 +19,20 @@ async def replace_chunks(db, document_id: str, rows: list[dict]) -> None:
         await db.table("drug_chunks").insert(rows[start : start + INSERT_BATCH]).execute()
 
 
+async def delete_other_labels(db, generic_name: str, keep_label_id: str) -> list[str]:
+    """Delete the drug_documents rows of `generic_name` that are NOT `keep_label_id` (a label that
+    was replaced, e.g. cetirizine eye drops -> tablets); their chunks go with them (ON DELETE
+    CASCADE). Returns the deleted label_ids."""
+    res = await (
+        db.table("drug_documents")
+        .delete()
+        .eq("generic_name", generic_name)
+        .neq("label_id", keep_label_id)
+        .execute()
+    )
+    return [r["label_id"] for r in res.data or []]
+
+
 async def list_documents(db) -> list[dict]:
     """All drug_documents rows: id, label_id, generic_name (64 at most, one request)."""
     res = await db.table("drug_documents").select("id, label_id, generic_name").execute()
@@ -38,17 +52,15 @@ async def source_urls(db, drug_names: list[str]) -> dict[str, str]:
     return {r["generic_name"]: r["source_url"] for r in res.data or [] if r.get("source_url")}
 
 
-async def chunk_inventory(db) -> list[dict]:
-    """document_id + metadata of every drug_chunks row (no vectors), fetched page by page."""
+async def chunk_inventory(db, *, embedded_only: bool = False) -> list[dict]:
+    """document_id + metadata of every drug_chunks row (no vectors), fetched page by page.
+    embedded_only: only rows whose embedding is not null."""
     rows: list[dict] = []
     while True:
-        res = await (
-            db.table("drug_chunks")
-            .select("document_id, metadata")
-            .order("id")
-            .range(len(rows), len(rows) + PAGE - 1)
-            .execute()
-        )
+        query = db.table("drug_chunks").select("document_id, metadata")
+        if embedded_only:
+            query = query.not_.is_("embedding", "null")
+        res = await query.order("id").range(len(rows), len(rows) + PAGE - 1).execute()
         page = res.data or []
         rows += page
         if len(page) < PAGE:

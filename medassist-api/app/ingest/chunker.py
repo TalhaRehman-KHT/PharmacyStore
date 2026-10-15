@@ -166,27 +166,50 @@ def chunk_label(record: dict) -> list[Chunk]:
     return chunks
 
 
-def run(raw_dir: Path | None = None, out_dir: Path | None = None) -> dict:
-    """CLI entry: data/raw/*.json -> data/chunks/chunks.jsonl + data/chunk_report.md."""
+def _old_rows(path: Path) -> dict[str, list[dict]]:
+    """Rows of an existing chunks.jsonl grouped by drug_name ({} when there is no file)."""
+    rows: dict[str, list[dict]] = {}
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                row = json.loads(line)
+                rows.setdefault(row["drug_name"], []).append(row)
+    return rows
+
+
+def run(
+    raw_dir: Path | None = None, out_dir: Path | None = None, only: list[str] | None = None
+) -> dict:
+    """CLI entry: data/raw/*.json -> data/chunks/chunks.jsonl + data/chunk_report.md.
+
+    `only` = re-chunk just these drugs; every other drug keeps its rows from the existing file
+    unchanged (same text = same cache key, so it costs no embedding quota).
+    """
     raw_dir = raw_dir or DATA_DIR / "raw"
     out_dir = out_dir or DATA_DIR / "chunks"
     out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / "chunks.jsonl"
+    wanted = None if only is None else {d.strip().lower() for d in only if d.strip()}
+    old = {} if wanted is None else _old_rows(out_file)
 
     per_section: Counter = Counter()
     sizes: list[int] = []
     docs = 0
-    with (out_dir / "chunks.jsonl").open("w", encoding="utf-8") as out:
-        for path in sorted(raw_dir.glob("*.json")):
-            record = json.loads(path.read_text(encoding="utf-8"))
-            meta = doc_meta(record)
-            docs += 1
-            for chunk in chunk_label(record):
-                out.write(
-                    json.dumps({"document": asdict(meta), **asdict(chunk)}, ensure_ascii=False)
-                    + "\n"
-                )
-                per_section[chunk.section] += 1
-                sizes.append(len(chunk.content))
+    lines: list[str] = []
+    for path in sorted(raw_dir.glob("*.json")):
+        record = json.loads(path.read_text(encoding="utf-8"))
+        docs += 1
+        drug = record["drug"]
+        if wanted is not None and drug.lower() not in wanted and drug in old:
+            rows = old[drug]
+        else:
+            meta = asdict(doc_meta(record))
+            rows = [{"document": meta, **asdict(c)} for c in chunk_label(record)]
+        for row in rows:
+            lines.append(json.dumps(row, ensure_ascii=False) + "\n")
+            per_section[row["section"]] += 1
+            sizes.append(len(row["content"]))
+    out_file.write_text("".join(lines), encoding="utf-8")
 
     report = {
         "documents": docs,

@@ -44,6 +44,7 @@ CASCADES = {
     "users": [("chat_sessions", "user_id")],
     "chat_sessions": [("chat_messages", "session_id"), ("escalations", "session_id")],
     "chat_messages": [("feedback", "message_id"), ("escalations", "message_id")],
+    "drug_documents": [("drug_chunks", "document_id")],
 }
 
 
@@ -171,6 +172,14 @@ class _Query:
         self.filters.append(lambda r: r.get(column) == value)
         return self
 
+    def neq(self, column: str, value) -> "_Query":
+        self.filters.append(lambda r: r.get(column) != value)
+        return self
+
+    @property
+    def not_(self) -> "_Not":
+        return _Not(self)
+
     def in_(self, column: str, values) -> "_Query":
         allowed = list(values)
         self.filters.append(lambda r: r.get(column) in allowed)
@@ -268,6 +277,19 @@ class _Query:
             else:
                 out.extend(self.db._insert(self.name, [row]))
         return out
+
+
+class _Not:
+    """`.not_.is_(column, "null")`: the only negation the repositories use."""
+
+    def __init__(self, query: _Query) -> None:
+        self.query = query
+
+    def is_(self, column: str, value: str) -> _Query:
+        if value != "null":
+            raise NotImplementedError(f"fake not_.is_ supports only 'null', got {value!r}")
+        self.query.filters.append(lambda r: r.get(column) is not None)
+        return self.query
 
 
 class _Rpc:

@@ -4,6 +4,8 @@ Input: data/chunks/chunks.jsonl (R15). For every document (one FDA label):
   1. upsert drug_documents by label_id (unique) -> its id
   2. delete all its drug_chunks, then insert the new ones
      (a re-chunked document never keeps stale rows; a re-run gives the same rows)
+  3. delete other drug_documents of the same generic name (a replaced label, e.g. cetirizine eye
+     drops -> tablets; their chunks go by ON DELETE CASCADE), so a drug never has two labels
 Only chunks whose embedding has exactly `dim` values are inserted. When the daily Gemini quota
 runs out, only documents whose chunks are ALL embedded (cache) are written; the rest wait for the
 next run. A dry run embeds (and so fills the cache) but writes nothing to the database.
@@ -12,13 +14,13 @@ no vectors of another model (app.rag.model_guard) and stops before spending any 
 """
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.paths import DATA_DIR
 from app.rag.embed import DailyQuotaExceeded, Embedder
 from app.rag.model_guard import MODEL_KEY, check_models, db_models
-from app.repositories.knowledge import replace_chunks, upsert_document
+from app.repositories.knowledge import delete_other_labels, replace_chunks, upsert_document
 
 CHUNKS_FILE = DATA_DIR / "chunks" / "chunks.jsonl"
 DOC_COLUMNS = ("label_id", "generic_name", "brand_names", "source_url", "effective_date")
@@ -35,6 +37,8 @@ class LoadReport:
     skipped_bad_dim: int = 0
     documents_loaded: int = 0
     documents_waiting: int = 0  # not fully embedded yet (daily quota): loaded on a later run
+    chunks_waiting: int = 0  # chunks of those waiting documents
+    replaced: list[str] = field(default_factory=list)  # old label_ids deleted (step 3)
     quota_reset_s: float | None = None  # set when the run stopped on the daily quota
     quota_stop: bool = False
     dry_run: bool = False
@@ -93,6 +97,7 @@ async def load(db, embedder: Embedder, docs: dict[str, list[dict]], *, dry_run: 
     # A document is written only when every chunk has a vector: never half a label in the DB.
     ready = [c for c in docs.values() if all(r["embedding"] is not None for r in c)]
     report.documents_waiting = len(docs) - len(ready)
+    report.chunks_waiting = report.chunks_in_file - sum(map(len, ready))
     if dry_run:
         return report
     for chunks in ready:
@@ -112,6 +117,7 @@ async def load(db, embedder: Embedder, docs: dict[str, list[dict]], *, dry_run: 
             if len(c["embedding"]) == embedder.dim
         ]
         await replace_chunks(db, doc_id, good)
+        report.replaced += await delete_other_labels(db, doc["generic_name"], doc["label_id"])
         report.inserted += len(good)
         report.documents_loaded += 1
     return report
