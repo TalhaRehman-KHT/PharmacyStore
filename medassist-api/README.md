@@ -59,7 +59,7 @@ python -m app.ingest.run embed-status    # how much is left
 There is no test suite (removed on purpose). Checks run against the real Supabase, Gemini and Groq:
 ```powershell
 ruff check .
-python -m scripts.live_checks                  # groups: db retrieval products guard (default: all)
+python -m scripts.live_checks                  # groups: db retrieval products guard llm (default: all)
 python -m scripts.live_checks db retrieval     # only some groups
 ```
 - `db`: documented columns, synonyms seeded, anon key locked out (`SUPABASE_ANON_KEY`), and with

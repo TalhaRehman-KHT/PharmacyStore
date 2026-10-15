@@ -32,7 +32,8 @@ async def lifespan(app: FastAPI):
     """Create shared resources once at startup."""
     settings = get_settings()
     app.state.db = await db_client.create_db(settings)
-    http = httpx.AsyncClient(timeout=30)  # query embeddings (Gemini)
+    # query embeddings (Gemini); LLM timeouts are in llm/providers.py, Supabase's in db/client.py
+    http = httpx.AsyncClient(timeout=30)
     app.state.rag = create_rag_deps(app.state.db, settings, http)
     agent_graph()  # compile the agent once, at startup
     tracing = enable_tracing(settings)

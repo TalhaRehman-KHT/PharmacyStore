@@ -16,6 +16,10 @@ Groups:
 - products:  shop product cards point at really sellable batches; the search writes nothing.
 - guard:     the guard (rules + the real fast LLM) on scripts/golden/guard_cases.csv:
              precision / recall per category, printed. About 20 fast-LLM calls.
+- llm:       the fallback chain on the REAL providers: a provider is made "busy" with a 1 ms
+             token timeout, so main busy -> Groq backup, both Groq busy -> Gemini, all busy ->
+             AllProvidersBusy (HTTP 429 in the API). Then 10 golden questions in a row through
+             the full agent (no DB writes): answered / 429 / median time.
 
 Exit code 1 if any check fails. Secrets are never printed.
 """
@@ -23,22 +27,27 @@ Exit code 1 if any check fails. Secrets are never printed.
 import asyncio
 import csv
 import os
+import statistics
 import sys
+import time
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import get_args
 from uuid import uuid4
 
 import httpx
+from langchain_core.messages import HumanMessage
 from postgrest.exceptions import APIError
 from supabase import AsyncClient, acreate_client
 
 from app.config import Settings, get_settings
 from app.db.client import create_db
+from app.graph.build import run_agent
 from app.graph.nodes.guard import Safety, classify
 from app.graph.nodes.tools import find_alternatives, search_products, search_words
-from app.llm.providers import get_llm
-from app.rag.deps import retrieval_mode
+from app.llm.providers import LLM, AllProvidersBusy, Provider, get_llm
+from app.rag.deps import create_rag_deps, retrieval_mode
 from app.rag.embed import embedder_from_settings
 from app.rag.rerank import Reranker
 from app.rag.retrieve import retrieve
@@ -332,10 +341,76 @@ async def check_guard(_db: AsyncClient, settings: Settings, report: Report) -> N
     await step(report, "guard: rules + fast LLM on the labelled cases", guard)
 
 
+# ---------- llm ----------
+
+PING = [HumanMessage(content="Reply with the single word: ok")]
+BURST = 10  # questions in a row for the burst check
+
+
+def starved(provider: Provider) -> Provider:
+    """The same real model, but with a 1 ms token timeout: it always counts as busy."""
+    return replace(provider, timeout=0.001)
+
+
+async def check_llm(db: AsyncClient, settings: Settings, report: Report) -> None:
+    chain = get_llm("answer", settings).providers  # Groq main -> Groq backup -> Gemini
+
+    async def answered_by(providers: list[Provider], expected: Provider) -> str:
+        llm = LLM(providers, attempts=1)
+        text = await llm.ainvoke(PING)
+        expect(bool(text.strip()), "empty answer")
+        got = llm.last_usage
+        expect(got is not None and got.model == expected.model,
+               f"answered by {got.model if got else None}, expected {expected.model}")
+        return f"{got.provider}/{got.model}"
+
+    async def main_busy():
+        return await answered_by([starved(chain[0]), *chain[1:]], chain[1])
+
+    async def groq_busy():
+        return await answered_by([*map(starved, chain[:-1]), chain[-1]], chain[-1])
+
+    async def all_busy():
+        try:
+            await LLM([starved(p) for p in chain], attempts=1).ainvoke(PING)
+        except AllProvidersBusy as exc:
+            expect(exc.retry_after_s > 0, "no Retry-After")
+            return f"AllProvidersBusy, Retry-After {exc.retry_after_s} s (API -> HTTP 429)"
+        raise StepFailed("no AllProvidersBusy")
+
+    async def burst():
+        loaded = await embedded_drugs(db)
+        questions = [q["question"] for q in read_csv("questions.csv")
+                     if q["expected_drug"].lower() in loaded][:BURST]
+        if not questions:
+            return "SKIPPED: no golden question has its drug loaded yet"
+        async with httpx.AsyncClient(timeout=30) as http:
+            deps = create_rag_deps(db, settings, http)
+            answered, busy, times = 0, 0, []
+            for q in questions:
+                start = time.perf_counter()
+                try:
+                    result = await run_agent(q, deps)
+                    answered += result.route != "no_evidence"
+                except AllProvidersBusy:
+                    busy += 1
+                times.append(time.perf_counter() - start)
+        print(f"\n  burst: {len(questions)} questions, answered {answered}, 429 {busy}, "
+              f"median {statistics.median(times):.1f} s, max {max(times):.1f} s")
+        expect(answered + busy >= len(questions) - 1, "more than one no-evidence answer")
+        return f"answered {answered}/{len(questions)}, 429 {busy}, " \
+               f"median {statistics.median(times):.1f} s"
+
+    await step(report, "llm: main model busy -> Groq backup answers", main_busy)
+    await step(report, "llm: both Groq models busy -> Gemini answers", groq_busy)
+    await step(report, "llm: every provider busy -> AllProvidersBusy", all_busy)
+    await step(report, f"llm: {BURST} agent questions in a row", burst)
+
+
 # ---------- runner ----------
 
 GROUPS = {"db": check_db, "retrieval": check_retrieval, "products": check_products,
-          "guard": check_guard}
+          "guard": check_guard, "llm": check_llm}
 
 
 async def step(report: Report, name: str, fn) -> None:

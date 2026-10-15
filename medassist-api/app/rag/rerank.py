@@ -6,12 +6,15 @@ data/flashrank/ and loaded only once per process.
 """
 
 import asyncio
+import logging
 from dataclasses import replace
 from typing import Any
 
 from app.paths import DATA_DIR
 from app.rag.search import SearchHit
 
+logger = logging.getLogger("medassist.rerank")
+TIMEOUT_S = 20  # max wait for one rerank call (the worker thread may still finish later)
 DEFAULT_TOP_N = 5
 MODEL_NAME = "ms-marco-TinyBERT-L-2-v2"  # FlashRank's default (~4 MB)
 STRONG_MODEL_NAME = "ms-marco-MiniLM-L-12-v2"  # bigger cross-encoder (~34 MB), compared in S4
@@ -19,7 +22,7 @@ CACHE_DIR = DATA_DIR / "flashrank"
 
 
 class Reranker:
-    """Wraps a flashrank.Ranker. Tests pass a fake `ranker` with the same rerank(request) method."""
+    """Wraps a flashrank.Ranker (created on first use unless one is passed in)."""
 
     def __init__(
         self, ranker: Any = None, top_n: int = DEFAULT_TOP_N, model_name: str = MODEL_NAME
@@ -55,5 +58,12 @@ class Reranker:
     async def rerank(
         self, query: str, hits: list[SearchHit], top_n: int | None = None
     ) -> list[SearchHit]:
-        """Same as rerank_sync, in a worker thread so the event loop is not blocked."""
-        return await asyncio.to_thread(self.rerank_sync, query, hits, top_n)
+        """Same as rerank_sync, in a worker thread so the event loop is not blocked.
+        Slower than TIMEOUT_S (e.g. the first model download) -> the hits in search order."""
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(self.rerank_sync, query, hits, top_n), TIMEOUT_S
+            )
+        except TimeoutError:
+            logger.warning("rerank took over %s s; using search order", TIMEOUT_S)
+            return hits[: top_n or self.top_n]
