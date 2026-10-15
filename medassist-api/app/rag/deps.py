@@ -1,7 +1,4 @@
-"""Everything an answer pipeline needs, created once at startup (app/main.py lifespan).
-
-Tests build a RagDeps with fakes (tests/fakes/rag.py) instead of real API clients.
-"""
+"""Everything an answer pipeline needs, created once at startup (app/main.py lifespan)."""
 
 from collections.abc import Callable
 from dataclasses import dataclass, field

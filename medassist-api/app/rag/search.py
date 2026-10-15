@@ -2,7 +2,7 @@
 
 The SQL lives in sql/006_hybrid_search.sql; only the service role may execute it. PostgREST finds
 the function by its parameter NAMES, so the dict keys below must match the live signature
-(docs/DB_SCHEMA.md, tests/fakes.py RPC_PARAMS).
+(docs/DB_SCHEMA.md).
 """
 
 from dataclasses import dataclass

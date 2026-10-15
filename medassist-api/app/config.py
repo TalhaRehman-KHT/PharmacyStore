@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     gemini_fallback_model: str = "gemini-3.5-flash"
     embed_dim: int = 768
 
-    # Retrieval (S4, on tests/golden/questions.csv): vector-only had the best Recall@5 and MRR;
+    # Retrieval (S4, on scripts/golden/questions.csv): vector-only had the best Recall@5 and MRR;
     # no FlashRank model beat plain hybrid, so reranking is off unless RERANK_ENABLED=true.
     retrieval_mode: Literal["vector", "hybrid"] = "vector"
     rerank_enabled: bool = False

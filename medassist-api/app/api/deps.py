@@ -11,10 +11,10 @@ from app.repositories import Repos
 
 
 def get_repos(db: Annotated[AsyncClient, Depends(get_db)]) -> Repos:
-    """All repositories bound to the app's Supabase client (tests override this or get_db)."""
+    """All repositories bound to the app's Supabase client."""
     return Repos(db)
 
 
 def get_rag(request: Request) -> RagDeps:
-    """Embedder, reranker and answer LLM created in the lifespan (tests override this)."""
+    """Embedder, reranker and answer LLM created in the lifespan."""
     return request.app.state.rag

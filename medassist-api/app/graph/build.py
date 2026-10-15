@@ -24,8 +24,7 @@
   "both" get the product TEXT; a knowledge answer stays purely medical.
 - Nodes are the pure functions of graph/nodes/; the wrappers below only hand them their
   dependencies. Those (DB, LLMs, catalog) are NOT built into the graph: they come per run in
-  the LangGraph runtime `context` (AgentContext), so the same compiled graph serves the app and
-  the tests (fakes) alike.
+  the LangGraph runtime `context` (AgentContext), so one compiled graph serves every request.
 
 Runners: stream_agent() yields answer text pieces, then one RagAnswer (graph/answer.py, stored
 by services/chat.py); run_agent() returns only the RagAnswer. LLM text streams live from the

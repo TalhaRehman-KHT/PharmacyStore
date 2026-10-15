@@ -1,6 +1,6 @@
 """Retrieve pipeline: question + its vector -> the best chunks.
 
-Modes (S4 measured them on tests/golden/questions.csv; vector was best):
+Modes (S4 measured them on scripts/golden/questions.csv; vector was best):
   vector         vector-only search (empty keyword text), top k
   hybrid         hybrid_search (vector + keyword, RRF), top k
   hybrid_rerank  hybrid_search top 20 -> cross-encoder reranker -> top k

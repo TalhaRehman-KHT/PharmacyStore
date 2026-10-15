@@ -11,8 +11,8 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-# Label structure and cleaning live in label.py / clean.py; imported here (callers and tests
-# keep importing them from chunker).
+# Label structure and cleaning live in label.py / clean.py; imported here (callers keep
+# importing them from chunker).
 from app.ingest.clean import clean_text
 from app.ingest.label import SECTION_MAP, Chunk, DocMeta, doc_meta, header, section_text  # noqa: F401
 from app.paths import DATA_DIR

@@ -55,15 +55,19 @@ python -m app.ingest.run embed-status    # how much is left
 - `sql/schema/` and `docs/DB_SCHEMA.md` are generated from the live database by
   `python -m scripts.snapshot_schema`; do not edit them by hand. See `sql/README.md`.
 
-## Test
+## Checks
+There is no test suite (removed on purpose). Checks run against the real Supabase, Gemini and Groq:
 ```powershell
 ruff check .
-pytest -q                                   # unit tests, no network (fakes for DB and LLMs)
-$env:RUN_INTEGRATION="1"; $env:ITEST_USER_EMAIL="<customer email>"; pytest -m integration -q
+python -m scripts.live_checks                  # groups: db retrieval products guard (default: all)
+python -m scripts.live_checks db retrieval     # only some groups
 ```
-Integration tests use the real database and touch only rows prefixed `[itest]`. They include a golden
-retrieval gate: Recall@5 on `tests/golden/questions.csv` (questions whose drug is loaded) must stay at or
-above `GOLDEN_RECALL_MIN` (default 0.8).
+- `db`: documented columns, synonyms seeded, anon key locked out (`SUPABASE_ANON_KEY`), and with
+  `CHECK_USER_EMAIL` the `answer_escalation` RPC + cascade on one `[check]` chat (deleted after).
+- `retrieval`: golden gate, Recall@5 on `scripts/golden/questions.csv` (questions whose drug is
+  loaded) must stay at or above `GOLDEN_RECALL_MIN` (default 0.8).
+- `products`: product cards match real sellable batches; read-only.
+- `guard`: precision / recall on `scripts/golden/guard_cases.csv` (about 20 fast-LLM calls).
 
 End-to-end check against a running API:
 `$env:SMOKE_CUSTOMER_EMAIL=...; $env:SMOKE_VENDOR_EMAIL=...; python -m scripts.smoke_test`

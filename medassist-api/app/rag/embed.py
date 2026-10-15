@@ -73,7 +73,7 @@ def _daily_quota_reset(res: httpx.Response) -> float | None:
 class Embedder:
     """Gemini embeddings with batching, retry, a small pause between batches and a disk cache.
 
-    `api_calls` and `cache_hits` count what happened, for the embed-load report and the tests.
+    `api_calls` and `cache_hits` count what happened, for the embed-load report.
     """
 
     def __init__(

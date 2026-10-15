@@ -3,7 +3,6 @@
 .git
 data
 .local
-tests
 notes
 prompts
 __pycache__
