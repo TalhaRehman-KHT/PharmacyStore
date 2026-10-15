@@ -2,7 +2,7 @@
 .venv
 .git
 data
-eval
+.local
 tests
 notes
 prompts

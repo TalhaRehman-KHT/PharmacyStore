@@ -3,8 +3,8 @@ through the wired graph (graph/build.py) with fake LLMs."""
 
 import pytest
 
-from app.baseline.naive import NO_EVIDENCE_TEXT
 from app.graph import build
+from app.graph.answer import NO_EVIDENCE_TEXT
 from app.graph.nodes.escalate import ESCALATION_TEXT, escalate, escalation_pharmacy
 from app.graph.nodes.guard import EMERGENCY_TEXT, classify, emergency, guard, rule_category
 from app.graph.nodes.no_evidence import URDU_NO_EVIDENCE

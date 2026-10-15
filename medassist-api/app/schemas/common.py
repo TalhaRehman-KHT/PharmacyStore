@@ -13,7 +13,7 @@ EscalationReason = Literal[
     "personal_dosing", "prescription_only", "pregnancy_or_child", "no_evidence"
 ]
 EscalationStatus = Literal["pending", "answered"]
-Variant = Literal["naive", "rewrite", "agent"]
+Variant = Literal["agent"]  # the DB column also allows older rows' "naive" / "rewrite"
 
 
 class CamelModel(BaseModel):

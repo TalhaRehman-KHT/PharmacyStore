@@ -14,7 +14,8 @@ data/*.csv
 data/drug_report.md
 !data/us_names.csv
 !data/drugs_extra.txt
-eval/cache/
+prompts/
+.local/
 
 # ===============================
 # Environment variables & secrets

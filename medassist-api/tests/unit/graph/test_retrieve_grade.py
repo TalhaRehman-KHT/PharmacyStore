@@ -3,7 +3,7 @@
 import pytest
 from langgraph.graph import END, START, StateGraph
 
-from app.baseline.naive import NO_EVIDENCE_TEXT
+from app.graph.answer import NO_EVIDENCE_TEXT
 from app.graph.drugs import CatalogCache
 from app.graph.nodes.grade import after_grade, grade, make_grade
 from app.graph.nodes.no_evidence import URDU_NO_EVIDENCE, no_evidence

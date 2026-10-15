@@ -2,7 +2,7 @@
 
 Each openFDA field (boxed_warning, dosage_and_administration, ...) becomes its own chunks, so a
 chunk never mixes two sections. Long sections are cut at paragraphs, then sentences, then spaces,
-never inside a word. Why it is built this way: docs/LEARNING.md "Chunker".
+never inside a word. Why it is built this way: .local/LEARNING.md "Chunker".
 """
 
 import json

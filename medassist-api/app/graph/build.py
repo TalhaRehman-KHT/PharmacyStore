@@ -27,11 +27,10 @@
   the LangGraph runtime `context` (AgentContext), so the same compiled graph serves the app and
   the tests (fakes) alike.
 
-Runners: stream_agent() yields answer text pieces, then one RagAnswer (the shape the naive
-baseline returns, so services/chat.py treats both variants the same); run_agent() returns only
-the RagAnswer. LLM text streams live from the generate node (custom stream events); fixed texts
-(product list, no evidence, out of scope, emergency, escalation note) are sent word by word when
-the graph has finished.
+Runners: stream_agent() yields answer text pieces, then one RagAnswer (graph/answer.py, stored
+by services/chat.py); run_agent() returns only the RagAnswer. LLM text streams live from the
+generate node (custom stream events); fixed texts (product list, no evidence, out of scope,
+emergency, escalation note) are sent word by word when the graph has finished.
 
 Tracing: with LANGSMITH_API_KEY set, enable_tracing() switches LangSmith on, and LangGraph traces
 every node of every run (project LANGSMITH_PROJECT).
@@ -48,8 +47,8 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 
-from app.baseline.naive import RagAnswer
 from app.config import Settings
+from app.graph.answer import RagAnswer
 from app.graph.nodes.escalate import escalate
 from app.graph.nodes.generate import generate
 from app.graph.nodes.grade import after_grade, grade

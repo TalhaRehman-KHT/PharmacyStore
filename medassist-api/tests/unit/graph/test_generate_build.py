@@ -3,9 +3,9 @@ end to end with fake LLMs, a fake hybrid_search and a fake shop: every route."""
 
 import pytest
 
-from app.baseline.naive import NO_EVIDENCE_TEXT, RagAnswer
 from app.config import Settings
 from app.graph import build
+from app.graph.answer import NO_EVIDENCE_TEXT, RagAnswer
 from app.graph.nodes.generate import generate
 from app.graph.nodes.no_evidence import no_evidence
 from app.graph.nodes.out_of_scope import OUT_OF_SCOPE_TEXT, out_of_scope

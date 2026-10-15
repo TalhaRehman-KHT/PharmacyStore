@@ -1,12 +1,12 @@
 """No-evidence node: the safe fixed answer when no relevant label chunk was found.
 
 Reached after the grader kept nothing twice (first query + one broader retry). No LLM call:
-a fixed text cannot invent anything. Same words as the naive baseline (en / roman_urdu), plus
-an Urdu-script version for the agent's third language. For a "both" question the shop part
+a fixed text cannot invent anything. en / roman_urdu come from graph/answer.py, plus an
+Urdu-script version for the router's third language. For a "both" question the shop part
 still works, so the product text (graph/nodes/tools.py) follows the no-evidence text.
 """
 
-from app.baseline.naive import NO_EVIDENCE_TEXT
+from app.graph.answer import NO_EVIDENCE_TEXT
 from app.graph.nodes.router import keyword_language
 from app.graph.nodes.tools import product_text
 from app.graph.state import AgentLanguage, AgentState

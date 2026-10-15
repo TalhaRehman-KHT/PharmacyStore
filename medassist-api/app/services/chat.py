@@ -1,18 +1,14 @@
 """One question -> stored session, user message, assistant message and (maybe) escalation."""
 
-import re
 import time
 from collections.abc import AsyncIterator
 from uuid import UUID
 
-from app.baseline import naive
 from app.graph import build
-from app.graph.nodes import escalate, guard
-from app.graph.nodes.router import keyword_language
+from app.graph.answer import RagAnswer
 from app.rag.deps import RagDeps
 from app.repositories import Repos
 from app.schemas.chat import AnswerMeta, AskRequest, AskResponse
-from app.schemas.common import Variant
 
 TITLE_LENGTH = 40
 HISTORY_MESSAGES = 4  # the last 2 question/answer pairs go into the prompt
@@ -31,38 +27,12 @@ async def resolve_session(repos: Repos, user_id: UUID, body: AskRequest) -> UUID
     return session.id
 
 
-def words(text: str) -> list[str]:
-    """Split into word pieces that keep their trailing whitespace, so they join back exactly."""
-    return re.findall(r"\S+\s*", text)
-
-
-async def naive_with_guard(
-    question: str, rag: RagDeps, history
-) -> AsyncIterator[str | naive.RagAnswer]:
-    """The naive baseline behind the same safety guard as the agent (graph/nodes/guard.py), as in
-    the pre-agent version: an emergency or a risky question gets a fixed text, no retrieval."""
-    safety, tokens = await guard.classify(question, history, llm_factory=rag.fast_llm)
-    if safety == "safe":
-        async for item in naive.answer_stream(question, rag, history):
-            yield item
-        return
-    language = keyword_language(question)
-    if safety == "emergency":
-        text, route, reason = guard.EMERGENCY_TEXT[language], "emergency", None
-    else:
-        text, route, reason = escalate.ESCALATION_TEXT[language], "escalated", safety
-    for piece in words(text):
-        yield piece
-    yield naive.RagAnswer(text, route, tokens=tokens or None, escalation_reason=reason)
-
-
 async def answer_stream(
     repos: Repos,
     rag: RagDeps,
     user_id: UUID,
     session_id: UUID,
     body: AskRequest,
-    variant: Variant = "agent",
 ) -> AsyncIterator[str | AskResponse]:
     """Answer one turn in an already resolved session: text pieces (str) while the answer is
     written, then the stored AskResponse. Both messages are persisted."""
@@ -73,23 +43,20 @@ async def answer_stream(
         session_id=session_id, user_id=user_id, role="user", content=body.question
     )
 
-    if variant == "agent":  # the guard node runs inside the graph
-        pipeline = build.stream_agent(
-            body.question,
-            rag,
-            history,
-            user_id=str(user_id),
-            pharmacy_id=str(body.pharmacy_id) if body.pharmacy_id else None,
-        )
-    else:
-        pipeline = naive_with_guard(body.question, rag, history)
-    result: naive.RagAnswer | None = None
+    pipeline = build.stream_agent(  # the safety guard is the graph's first node
+        body.question,
+        rag,
+        history,
+        user_id=str(user_id),
+        pharmacy_id=str(body.pharmacy_id) if body.pharmacy_id else None,
+    )
+    result: RagAnswer | None = None
     async for item in pipeline:
-        if isinstance(item, naive.RagAnswer):
+        if isinstance(item, RagAnswer):
             result = item
         else:
             yield item
-    assert result is not None  # both pipelines end with their RagAnswer
+    assert result is not None  # the agent always ends with its RagAnswer
     reason = result.escalation_reason
     latency_ms = int((time.perf_counter() - started) * 1000)
 
@@ -101,7 +68,7 @@ async def answer_stream(
         route=result.route,
         citations=result.citations,
         products=result.products,
-        variant=variant,
+        variant="agent",
         latency_ms=latency_ms,
         tokens=result.tokens,
     )
@@ -136,10 +103,9 @@ async def answer_question(
     user_id: UUID,
     session_id: UUID,
     body: AskRequest,
-    variant: Variant = "agent",
 ) -> AskResponse:
     """The same turn as answer_stream, returned in one piece (POST /ask)."""
-    async for item in answer_stream(repos, rag, user_id, session_id, body, variant):
+    async for item in answer_stream(repos, rag, user_id, session_id, body):
         if isinstance(item, AskResponse):
             return item
     raise RuntimeError("answer_stream ended without a response")

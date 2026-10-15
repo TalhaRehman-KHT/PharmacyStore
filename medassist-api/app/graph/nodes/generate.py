@@ -3,7 +3,7 @@
 What it writes depends on what the earlier nodes found:
 1. graded_chunks (route knowledge / both): the S1 answer prompt (prompts/answer.txt, reply in
    en / roman_urdu / urdu) streamed from the answer LLM, with [n] citations for chunks only.
-   Same hold-back rule as the naive baseline: nothing is shown until the first valid [n], and an
+   Hold-back rule: nothing is shown until the first valid [n], and an
    answer without one is replaced by the no-evidence text (route no_evidence).
 2. product_results (route product / both): a short FIXED text over the cards (tools.product_text),
    not written by the LLM, so prices and stock cannot be invented. The cards themselves go to the
@@ -19,7 +19,7 @@ LangGraph stream writer, which feeds the SSE `token` events).
 import time
 from collections.abc import Callable
 
-from app.baseline.naive import build_citations, used_numbers
+from app.graph.answer import build_citations, used_numbers
 from app.graph.nodes.no_evidence import no_evidence_text
 from app.graph.nodes.router import keyword_language
 from app.graph.nodes.tools import product_text

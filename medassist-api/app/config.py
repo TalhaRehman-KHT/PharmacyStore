@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     supabase_service_key: SecretStr
     supabase_jwt_secret: SecretStr | None = None
 
-    # app_user_id: trust the X-User-Id header like the main app does (docs/ARCHITECTURE.md s.4).
+    # app_user_id: trust the X-User-Id header like the main app does (CLAUDE.md "Hard rules").
     # supabase: verify a Supabase JWT (kept for when the main app gets real login).
     auth_mode: Literal["app_user_id", "supabase"] = "app_user_id"
     # Staff roles in public.users. All-access roles see every escalation; vendor-scoped
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     gemini_fallback_model: str = "gemini-3.5-flash"
     embed_dim: int = 768
 
-    # Retrieval (S4, PROGRESS.md "Observations"): vector-only had the best Recall@5 and MRR;
+    # Retrieval (S4, on tests/golden/questions.csv): vector-only had the best Recall@5 and MRR;
     # no FlashRank model beat plain hybrid, so reranking is off unless RERANK_ENABLED=true.
     retrieval_mode: Literal["vector", "hybrid"] = "vector"
     rerank_enabled: bool = False

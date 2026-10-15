@@ -18,7 +18,7 @@ from app.services.language import Language
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 NO_CONTEXT = "(no context found)"
-# "urdu" (Urdu script) comes from the agent's router; the naive baseline only knows en / roman_urdu.
+# "urdu" (Urdu script) comes from the agent's router; keyword detection knows en / roman_urdu.
 ReplyLanguage = Language | Literal["urdu"]
 LANGUAGE_NAMES: dict[ReplyLanguage, str] = {
     "en": "English",

@@ -25,7 +25,7 @@ from app.rate_limit import ask_limit
 from app.repositories import Repos
 from app.repositories.escalations import EscalationScope
 from app.schemas.chat import AskRequest, AskResponse, ChatMessageOut, ChatSessionOut, FeedbackIn
-from app.schemas.common import EscalationStatus, Variant
+from app.schemas.common import EscalationStatus
 from app.schemas.escalation import EscalationOut, EscalationReplyIn, InsightsOut
 from app.security.auth import CurrentUser, get_current_user, require_staff
 from app.services import chat
@@ -45,8 +45,6 @@ User = Annotated[CurrentUser, Depends(get_current_user)]
 Staff = Annotated[CurrentUser, Depends(require_staff)]
 ReposDep = Annotated[Repos, Depends(get_repos)]
 RagDep = Annotated[RagDeps, Depends(get_rag)]
-BUILT_VARIANTS: set[Variant] = {"agent", "naive"}  # agent = default; naive = research baseline
-VariantQuery = Annotated[Variant, Query()]
 
 
 async def get_scope(staff: Staff, repos: ReposDep) -> EscalationScope:
@@ -62,13 +60,6 @@ async def _check_pharmacy(repos: Repos, body: AskRequest) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "pharmacyId: unknown pharmacy")
 
 
-def _check_variant(variant: Variant) -> None:
-    if variant not in BUILT_VARIANTS:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, f"variant: '{variant}' is not available yet"
-        )
-
-
 @router.post("/ask", response_model=AskResponse, tags=["chat"], **_OUT, **_ASK)
 @ask_limit
 async def ask(
@@ -77,14 +68,11 @@ async def ask(
     user: User,
     repos: ReposDep,
     rag: RagDep,
-    variant: VariantQuery = "agent",
 ) -> AskResponse:
-    """Answer a question in one response. variant: agent (default, LangGraph) or naive (the
-    plain RAG baseline, kept for evaluation)."""
-    _check_variant(variant)
+    """Answer a question in one response (the LangGraph agent)."""
     await _check_pharmacy(repos, body)
     session_id = await chat.resolve_session(repos, user.id, body)
-    return await chat.answer_question(repos, rag, user.id, session_id, body, variant)
+    return await chat.answer_question(repos, rag, user.id, session_id, body)
 
 
 def _event(name: str, data) -> ServerSentEvent:
@@ -99,7 +87,6 @@ async def ask_stream(
     user: User,
     repos: ReposDep,
     rag: RagDep,
-    variant: VariantQuery = "agent",
 ) -> EventSourceResponse:
     """Stream an answer as SSE.
 
@@ -107,18 +94,14 @@ async def ask_stream(
     `citations` (data: Citation[]), `meta` (data: AnswerMeta), `done` (data: {}).
     On failure: `error` (data: {status, message}), also after some tokens were sent.
     Session ownership and pharmacyId are checked before the stream starts (plain HTTP errors).
-    variant: agent (default) or naive, as for /ask.
     """
-    _check_variant(variant)
     await _check_pharmacy(repos, body)
     session_id = await chat.resolve_session(repos, user.id, body)
 
     async def events() -> AsyncIterator[ServerSentEvent]:
         result: AskResponse | None = None
         try:
-            async for item in chat.answer_stream(
-                repos, rag, user.id, session_id, body, variant
-            ):
+            async for item in chat.answer_stream(repos, rag, user.id, session_id, body):
                 if isinstance(item, AskResponse):
                     result = item
                 else:

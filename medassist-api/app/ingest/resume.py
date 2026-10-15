@@ -4,7 +4,7 @@ A document (one FDA label) is DONE when the database holds exactly as many chunk
 label_id as chunks.jsonl has, and every one of them has an embedding made by the current model
 (metadata.embedding_model). Done documents are skipped, so a daily run spends the Gemini free-tier
 quota (~1000 texts/day) only on new work. The rest is loaded in PRIORITY order (drugs the shop
-sells most / the eval needs), then alphabetically.
+sells most / the golden test needs), then alphabetically.
 Safe to run every day: vectors are cached on disk (no repeated cost) and the loader replaces a
 document's chunks (no duplicate rows).
 """
