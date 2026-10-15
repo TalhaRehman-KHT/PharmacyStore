@@ -8,6 +8,8 @@ One call to the fast LLM (temperature 0) asking for {"route": ..., "language": .
 with a Pydantic model. If the reply cannot be parsed the router falls back to "knowledge"
 (the safe default: the question still gets a cited answer or "no evidence") and the language
 from the keyword detector (services/language.py; Urdu script is recognised by its letters).
+"urdu" is decided by the letters only: the model sometimes says urdu for Roman Urdu.
+The message goes inside <message> tags: it is data, not instructions (prompt injection).
 """
 
 import re
@@ -42,7 +44,7 @@ def router_messages(state: AgentState) -> list:
     earlier = f"Earlier chat:\n{history}\n\n" if history else ""
     return [
         SystemMessage(load_prompt("router")),
-        HumanMessage(f"{earlier}Message: {state['question']}"),
+        HumanMessage(f"{earlier}<message>\n{state['question']}\n</message>"),
     ]
 
 
@@ -56,6 +58,8 @@ async def route(state: AgentState, *, llm) -> dict:
         language = decision.language
         if _URDU_SCRIPT.search(state["question"]):
             language = "urdu"  # letters do not lie; the model sometimes says roman_urdu
+        elif language == "urdu":
+            language = detect_language(state["question"])  # no Urdu letters: en / roman_urdu
         update = {"route": decision.route, "language": language}
     ms = round((time.perf_counter() - start) * 1000)
     return {**update, "tokens": tokens, "timings": {"router": ms}}
