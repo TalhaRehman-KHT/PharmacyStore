@@ -25,14 +25,18 @@ async def retrieve(
     mode: Mode = "hybrid",
     top_k: int = TOP_K,
     embed_model: str | None = None,
+    drug_filter: str | None = None,
 ) -> list[SearchHit]:
     """Best chunks first, at most top_k. embed_model = the model that made `vector`: the search
-    refuses (EmbeddingModelMismatch) when the DB holds vectors of another model."""
+    refuses (EmbeddingModelMismatch) when the DB holds vectors of another model.
+    drug_filter = search only the chunks of this drug (drug_chunks.drug_name), None = all."""
     if embed_model is not None:
         await ensure_db_model(db, embed_model)
     if mode == "vector":
-        return await hybrid_search(db, vector, "", match_count=top_k)
+        return await hybrid_search(db, vector, "", match_count=top_k, drug_filter=drug_filter)
     if mode == "hybrid":
-        return await hybrid_search(db, vector, query, match_count=top_k)
-    hits = await hybrid_search(db, vector, query, match_count=DEFAULT_MATCH_COUNT)
+        return await hybrid_search(db, vector, query, match_count=top_k, drug_filter=drug_filter)
+    hits = await hybrid_search(
+        db, vector, query, match_count=DEFAULT_MATCH_COUNT, drug_filter=drug_filter
+    )
     return await reranker.rerank(query, hits, top_n=top_k)

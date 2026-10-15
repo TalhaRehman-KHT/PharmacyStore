@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from app.graph.drugs import CatalogCache, DrugCatalog
 from app.graph.nodes.router import keyword_language
-from app.graph.state import AgentState
+from app.graph.state import AgentState, add_timing
 from app.graph.structured import ask_json, format_history
 from app.llm.answer_prompt import load_prompt
 
@@ -90,7 +90,7 @@ async def rewrite(state: AgentState, *, llm, catalog: DrugCatalog) -> dict:
         "drug_filter": drug_filter,
         "rewrite_count": count + 1,
         "tokens": tokens,
-        "timings": {"rewrite": ms},
+        "timings": add_timing(state, "rewrite", ms),
     }
 
 
