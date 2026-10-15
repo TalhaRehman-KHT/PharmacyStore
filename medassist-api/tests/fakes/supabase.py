@@ -48,6 +48,22 @@ CASCADES = {
 }
 
 
+def _ilike(value, pattern: str) -> bool:
+    """SQL ILIKE: `%` (or PostgREST's `*`) = any text, `_` = one character, no case."""
+    if value is None:
+        return False
+    regex = "".join(
+        ".*" if ch in "%*" else "." if ch == "_" else re.escape(ch) for ch in pattern
+    )
+    return re.fullmatch(regex, str(value), re.I | re.S) is not None
+
+
+def _cmp(a, b) -> int:
+    if isinstance(a, int | float) and isinstance(b, int | float):
+        return (a > b) - (a < b)
+    return (str(a) > str(b)) - (str(a) < str(b))
+
+
 class FakeError(Exception):
     """Raised where Postgres would raise (unique violation, .single() mismatch)."""
 
@@ -186,7 +202,8 @@ class _Query:
         return self
 
     def or_(self, filters: str) -> "_Query":
-        # Only the PostgREST forms the repositories use: "col.is.null" and "col.in.(a,b)".
+        # Only the PostgREST forms the repositories use: "col.is.null", "col.in.(a,b)" and
+        # "col.ilike.*word*".
         checks = []
         for part in re.findall(r"[^,(]+(?:\([^)]*\))?", filters):
             column, op, arg = part.split(".", 2)
@@ -195,9 +212,20 @@ class _Query:
             elif op == "in":
                 values = [v for v in arg.strip("()").split(",") if v]
                 checks.append(lambda r, c=column, vs=values: r.get(c) in vs)
+            elif op == "ilike":
+                checks.append(lambda r, c=column, p=arg: _ilike(r.get(c), p))
             else:
                 raise NotImplementedError(f"fake or_ does not support {part!r}")
         self.filters.append(lambda r: any(check(r) for check in checks))
+        return self
+
+    def ilike(self, column: str, pattern: str) -> "_Query":
+        self.filters.append(lambda r: _ilike(r.get(column), pattern))
+        return self
+
+    def gt(self, column: str, value) -> "_Query":
+        # Numbers compare as numbers; ISO dates / timestamps compare correctly as strings.
+        self.filters.append(lambda r: r.get(column) is not None and _cmp(r[column], value) > 0)
         return self
 
     def gte(self, column: str, value) -> "_Query":

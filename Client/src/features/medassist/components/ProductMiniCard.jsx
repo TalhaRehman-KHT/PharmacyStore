@@ -1,12 +1,12 @@
-import { Pill, Plus } from "lucide-react";
-import { formatPrice } from "../utils.js";
+import { Pill, Plus, Store } from "lucide-react";
+import { formatPrice, productKey } from "../utils.js";
 
 /**
  * @param {{ product: import("../types.js").ProductCard, onAdd: (p: import("../types.js").ProductCard) => void,
  *   addingId?: string | null, compact?: boolean }} props
  */
 export default function ProductMiniCard({ product, onAdd, addingId, compact = false }) {
-  const adding = addingId === product.id;
+  const adding = addingId === productKey(product);
   const alternatives = !product.inStock ? product.alternatives || [] : [];
 
   return (
@@ -23,9 +23,21 @@ export default function ProductMiniCard({ product, onAdd, addingId, compact = fa
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-text-primary truncate">{product.name}</p>
-          <p className="text-xs text-text-secondary truncate capitalize">{product.genericName}</p>
+          {product.genericName && (
+            <p className="text-xs text-text-secondary truncate capitalize">{product.genericName}</p>
+          )}
+          {product.pharmacyName && (
+            <p className="text-xs text-text-secondary truncate flex items-center gap-1">
+              <Store className="w-3 h-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{product.pharmacyName}</span>
+            </p>
+          )}
           <div className="mt-1 flex items-center gap-2">
-            <span className="text-sm font-bold text-primary-green">{formatPrice(product.price)}</span>
+            {product.price != null && (
+              <span className="text-sm font-bold text-primary-green">
+                {formatPrice(product.price, product.currency)}
+              </span>
+            )}
             <span
               className="text-[11px] font-bold px-2 py-0.5 rounded-lg whitespace-nowrap"
               style={
@@ -61,7 +73,7 @@ export default function ProductMiniCard({ product, onAdd, addingId, compact = fa
           <p className="text-xs font-semibold text-text-secondary mb-2">Same medicine, available now</p>
           <ul className="space-y-2">
             {alternatives.map((alt) => (
-              <li key={alt.id}>
+              <li key={productKey(alt)}>
                 <ProductMiniCard product={alt} onAdd={onAdd} addingId={addingId} compact />
               </li>
             ))}

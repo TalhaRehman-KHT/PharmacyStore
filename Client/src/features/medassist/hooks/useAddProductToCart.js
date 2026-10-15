@@ -3,15 +3,16 @@ import toast from "react-hot-toast";
 import { AuthContext } from "../../../context/AuthContext.jsx";
 import { getShopMedicines } from "../../../lib/userShopService.js";
 import { addToCart } from "../../../lib/userCartService.js";
+import { productKey } from "../utils.js";
 
 const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 /**
- * Match a MedAssist ProductCard to a shop medicine: by id first (FastAPI returns medicines.id),
- * then by brand name (first word, e.g. "Panadol 500mg (10 tablets)" -> "panadol").
+ * Mock cards have no batchId: match them to a shop medicine by id, then by brand name
+ * (first word, e.g. "Panadol 500mg (10 tablets)" -> "panadol").
  */
 function findShopMedicine(medicines, product) {
-  const byId = medicines.find((m) => String(m.id) === String(product.id));
+  const byId = medicines.find((m) => String(m.id) === String(product.medicineId));
   if (byId) return byId;
   const full = norm(product.name);
   const brand = full.split(" ")[0];
@@ -22,7 +23,25 @@ function findShopMedicine(medicines, product) {
   );
 }
 
-/** Add a MedAssist ProductCard to the cart using the shop's cheapest in-stock batch. */
+/** The batch to add: the card's own batch (real API), else the shop's best batch (mock cards). */
+async function resolveBatch(product) {
+  if (product.batchId) {
+    return {
+      name: product.name,
+      batch: {
+        id: product.batchId,
+        pharmacyId: product.pharmacyId,
+        medicineId: product.medicineId,
+        sellingPrice: product.price,
+      },
+    };
+  }
+  const { medicines } = await getShopMedicines();
+  const medicine = findShopMedicine(medicines, product);
+  return { name: medicine?.name, batch: medicine?.bestBatch };
+}
+
+/** Add a MedAssist ProductCard to the cart with the shop's own addToCart (it re-checks the stock). */
 export function useAddProductToCart() {
   const { user } = useContext(AuthContext);
   const [addingId, setAddingId] = useState(null);
@@ -33,11 +52,9 @@ export function useAddProductToCart() {
         toast.error("Please sign in to add to cart");
         return;
       }
-      setAddingId(product.id);
+      setAddingId(productKey(product));
       try {
-        const { medicines } = await getShopMedicines();
-        const medicine = findShopMedicine(medicines, product);
-        const batch = medicine?.bestBatch;
+        const { name, batch } = await resolveBatch(product);
         if (!batch) {
           toast.error(`${product.name} is not available in the shop right now`);
           return;
@@ -50,7 +67,7 @@ export function useAddProductToCart() {
           quantity: 1,
           unitPrice: batch.sellingPrice,
         });
-        toast.success(`${medicine.name} added to cart`);
+        toast.success(`${name} added to cart`);
       } catch (err) {
         toast.error(err?.message || "Failed to add to cart");
       } finally {

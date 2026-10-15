@@ -67,6 +67,12 @@ class DrugCatalog:
                 out.append(name)
         return out
 
+    def local_names(self, us_name: str) -> list[str]:
+        """Brands and local generics of a US name, as the shop writes them in `medicines`
+        (acetaminophen -> panadol, paracetamol, ...), sorted."""
+        us = _norm(us_name)
+        return sorted(k for k, v in self.synonyms.items() if v == us and k != us)
+
     def unique(self, names: Iterable[str]) -> list[str]:
         """US names without repeats. A single drug already covered by an earlier name is a repeat:
         "metformin" after "metformin hydrochloride", "clavulanate" after

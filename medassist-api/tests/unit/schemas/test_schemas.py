@@ -23,7 +23,8 @@ from app.schemas.escalation import EscalationOut, EscalationReplyIn
 CLIENT_FIELDS = {
     Citation: ["n", "drug", "section", "url"],
     ProductCard: [
-        "id", "name", "genericName", "price", "currency", "inStock", "imageUrl", "alternatives",
+        "batchId", "medicineId", "name", "genericName", "price", "currency", "inStock",
+        "pharmacyId", "pharmacyName", "imageUrl", "alternatives",
     ],
     AnswerMeta: [
         "messageId", "sessionId", "route", "escalated", "escalationReason", "escalationStatus",
@@ -65,7 +66,8 @@ def test_output_is_camel_case():
 
 def test_ask_response_round_trip_json():
     product = ProductCard(
-        id="p1", name="Panadol", generic_name="Paracetamol", price=45, in_stock=True
+        batch_id="b1", medicine_id="m1", name="Panadol", generic_name="Paracetamol", price=45,
+        in_stock=True, pharmacy_id="ph1", pharmacy_name="City Pharmacy",
     )
     res = AskResponse(
         answer="Paracetamol relieves pain [1].",
@@ -78,8 +80,9 @@ def test_ask_response_round_trip_json():
     data = res.model_dump(mode="json", by_alias=True, exclude_none=True)
 
     assert data["meta"]["products"][0] == {
-        "id": "p1", "name": "Panadol", "genericName": "Paracetamol", "price": 45.0,
-        "currency": "PKR", "inStock": True,
+        "batchId": "b1", "medicineId": "m1", "name": "Panadol", "genericName": "Paracetamol",
+        "price": 45.0, "currency": "USD", "inStock": True, "pharmacyId": "ph1",
+        "pharmacyName": "City Pharmacy",
     }
 
 
@@ -120,9 +123,11 @@ def test_bad_reply_rejected(reply):
 
 def test_product_rules():
     with pytest.raises(ValidationError):
-        ProductCard(id="p", name="n", generic_name="g", price=-1, in_stock=True)
+        ProductCard(medicine_id="m", name="n", price=-1, in_stock=True)
     with pytest.raises(ValidationError):
-        ProductCard(id="p", name="n", generic_name="g", price=1, currency="USD", in_stock=True)
+        ProductCard(medicine_id="m", name="n", price=1, currency="Rs", in_stock=True)
+    out_of_stock = ProductCard(medicine_id="m", name="n", in_stock=False)
+    assert out_of_stock.price is None and out_of_stock.batch_id is None
 
 
 def test_escalation_dump_uses_iso_dates():

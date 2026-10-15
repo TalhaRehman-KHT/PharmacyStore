@@ -111,12 +111,12 @@ export function buildAnswer(scenario, question) {
   switch (scenario) {
     case "product_in_stock": {
       const content = isRomanUrdu(question)
-        ? `Ji haan, **${product.name}** stock mein hai. Qeemat ${formatPrice(product.price)} hai.`
-        : `Yes, **${product.name}** is in stock for ${formatPrice(product.price)}.`;
+        ? `Ji haan, **${product.name}** stock mein hai. Qeemat ${formatPrice(product.price, product.currency)} hai.`
+        : `Yes, **${product.name}** is in stock for ${formatPrice(product.price, product.currency)}.`;
       return { content, citations: [], route: "product", escalated: false, products: [{ ...product }] };
     }
     case "product_out_of_stock": {
-      const out = { ...product, inStock: false, alternatives: clone(ALTERNATIVES[drugKey]) };
+      const out = { ...product, inStock: false, price: undefined, pharmacyName: undefined, alternatives: clone(ALTERNATIVES[drugKey]) };
       return {
         content:
           `**${product.name}** is currently out of stock. These alternatives contain the same active ingredient ` +

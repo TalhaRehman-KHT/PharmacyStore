@@ -78,55 +78,61 @@ export function cite(n, drug, section) {
   return { n, drug, section, url: `${FDA_URL}?search=openfda.generic_name:${encodeURIComponent(drug)}` };
 }
 
-/** Products keyed by generic name. Prices in PKR. */
+/** Products keyed by generic name. Prices in PKR. No batchId: mock cards add to cart by name. */
 export const PRODUCTS = {
   paracetamol: {
-    id: "prod-panadol-500",
+    medicineId: "prod-panadol-500",
     name: "Panadol 500mg (10 tablets)",
     genericName: "paracetamol",
     price: 45,
     currency: "PKR",
     inStock: true,
+    pharmacyName: "Demo Pharmacy",
   },
   ibuprofen: {
-    id: "prod-brufen-400",
+    medicineId: "prod-brufen-400",
     name: "Brufen 400mg (10 tablets)",
     genericName: "ibuprofen",
     price: 75,
     currency: "PKR",
     inStock: true,
+    pharmacyName: "Demo Pharmacy",
   },
   amoxicillin: {
-    id: "prod-augmentin-625",
+    medicineId: "prod-augmentin-625",
     name: "Augmentin 625mg (6 tablets)",
     genericName: "amoxicillin + clavulanic acid",
     price: 590,
     currency: "PKR",
     inStock: true,
+    pharmacyName: "Demo Pharmacy",
   },
   metformin: {
-    id: "prod-glucophage-500",
+    medicineId: "prod-glucophage-500",
     name: "Glucophage 500mg (30 tablets)",
     genericName: "metformin",
     price: 165,
     currency: "PKR",
     inStock: true,
+    pharmacyName: "Demo Pharmacy",
   },
   cetirizine: {
-    id: "prod-zyrtec-10",
+    medicineId: "prod-zyrtec-10",
     name: "Zyrtec 10mg (10 tablets)",
     genericName: "cetirizine",
     price: 295,
     currency: "PKR",
     inStock: true,
+    pharmacyName: "Demo Pharmacy",
   },
   omeprazole: {
-    id: "prod-risek-20",
+    medicineId: "prod-risek-20",
     name: "Risek 20mg (14 capsules)",
     genericName: "omeprazole",
     price: 480,
     currency: "PKR",
     inStock: true,
+    pharmacyName: "Demo Pharmacy",
   },
 };
 
@@ -136,20 +142,22 @@ export const ALTERNATIVES = Object.fromEntries(
     key,
     [
       {
-        id: `${p.id}-gen-a`,
+        medicineId: `${p.medicineId}-gen-a`,
         name: `${DRUGS[key].generic[0].toUpperCase()}${DRUGS[key].generic.slice(1)} (generic, pack A)`,
         genericName: p.genericName,
         price: Math.round(p.price * 0.7),
         currency: "PKR",
         inStock: true,
+        pharmacyName: "Demo Pharmacy",
       },
       {
-        id: `${p.id}-gen-b`,
+        medicineId: `${p.medicineId}-gen-b`,
         name: `${DRUGS[key].generic[0].toUpperCase()}${DRUGS[key].generic.slice(1)} (generic, pack B)`,
         genericName: p.genericName,
         price: Math.round(p.price * 0.85),
         currency: "PKR",
         inStock: true,
+        pharmacyName: "Demo Pharmacy",
       },
     ],
   ])

@@ -18,13 +18,18 @@
  */
 
 /**
+ * A shop medicine. In stock: batchId / price / pharmacy of the batch the cart uses.
+ * Out of stock: no batchId and no price, maybe in-stock alternatives (same generic).
  * @typedef {Object} ProductCard
- * @property {string} id
+ * @property {string} [batchId] medicine_batches.id (absent when out of stock)
+ * @property {string} medicineId
  * @property {string} name
- * @property {string} genericName
- * @property {number} price
- * @property {'PKR'} currency
+ * @property {string} [genericName]
+ * @property {number} [price] selling_price (absent when out of stock)
+ * @property {string} currency ISO code, e.g. 'USD' (API setting SHOP_CURRENCY)
  * @property {boolean} inStock
+ * @property {string} [pharmacyId]
+ * @property {string} [pharmacyName]
  * @property {string} [imageUrl]
  * @property {ProductCard[]} [alternatives]
  */

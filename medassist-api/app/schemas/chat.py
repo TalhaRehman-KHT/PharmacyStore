@@ -32,14 +32,19 @@ class Citation(CamelModel):
 
 
 class ProductCard(CamelModel):
-    """A pharmacy product shown under an answer."""
+    """A shop medicine shown under an answer (graph/nodes/tools.py). In stock: the batch the
+    cart uses (cheapest valid batch, the customer's pharmacy first). Out of stock: no batch,
+    no price, maybe in-stock alternatives with the same generic."""
 
-    id: str
+    batch_id: str | None = None
+    medicine_id: str
     name: str
-    generic_name: str
-    price: float = Field(ge=0)
-    currency: Literal["PKR"] = "PKR"
+    generic_name: str | None = None
+    price: float | None = Field(default=None, ge=0)  # medicine_batches.selling_price
+    currency: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")] = "USD"
     in_stock: bool
+    pharmacy_id: str | None = None
+    pharmacy_name: str | None = None
     image_url: str | None = None
     alternatives: list[ProductCard] | None = None
 

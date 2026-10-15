@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     rerank_enabled: bool = False
     rerank_model: str = "ms-marco-MiniLM-L-12-v2"
 
+    # Currency of medicine_batches.selling_price. The shop shows "$" and Stripe charges USD
+    # (Server STRIPE_CURRENCY default), so product cards use the same.
+    shop_currency: str = "USD"
+
     cors_origins: list[str] = ["http://localhost:5173"]
     rate_limit: str = "20/hour"
 

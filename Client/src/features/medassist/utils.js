@@ -4,8 +4,14 @@ export const citationDomId = (messageId, n) => `medassist-cite-${messageId}-${n}
 /**
  * Format a price exactly like the shop pages do (`${price.toFixed(2)}`), e.g. 45 -> "$45.00".
  * The shop has no shared helper, so this copies its inline format instead of importing it.
+ * Other currency codes (mock data: PKR) get their own symbol.
  */
-export const formatPrice = (amount) => `$${(Number(amount) || 0).toFixed(2)}`;
+const CURRENCY_SYMBOLS = { USD: "$", PKR: "Rs " };
+export const formatPrice = (amount, currency = "USD") =>
+  `${CURRENCY_SYMBOLS[currency] ?? `${currency} `}${(Number(amount) || 0).toFixed(2)}`;
+
+/** Stable React key / "adding" id of a ProductCard: its batch, or the medicine when out of stock. */
+export const productKey = (product) => product.batchId || product.medicineId;
 
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 const RELATIVE_STEPS = [

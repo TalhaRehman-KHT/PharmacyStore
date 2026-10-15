@@ -8,7 +8,7 @@ import EscalationBanner from "./EscalationBanner.jsx";
 import EmergencyBanner from "./EmergencyBanner.jsx";
 import FeedbackButtons from "./FeedbackButtons.jsx";
 import Disclaimer from "./Disclaimer.jsx";
-import { citationDomId } from "../utils.js";
+import { citationDomId, productKey } from "../utils.js";
 
 const CITE_HREF = "#medassist-cite-";
 
@@ -111,7 +111,7 @@ export default function AssistantMessage({ message, streaming, onRate, onAdd, ad
       {meta?.products?.length > 0 && (
         <div className="mt-2 space-y-2">
           {meta.products.map((p) => (
-            <ProductMiniCard key={p.id} product={p} onAdd={onAdd} addingId={addingId} />
+            <ProductMiniCard key={productKey(p)} product={p} onAdd={onAdd} addingId={addingId} />
           ))}
         </div>
       )}
