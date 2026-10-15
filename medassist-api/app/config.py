@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr
     gemini_api_key: SecretStr
     openfda_api_key: SecretStr | None = None
-    langsmith_api_key: SecretStr | None = None
+    langsmith_api_key: SecretStr | None = None  # set -> every agent node is traced (graph/build.py)
+    langsmith_project: str = "medassist"
 
     # Groq ids checked with GET /openai/v1/models (2026-10-14); llama-3.x ids are no longer listed.
     # All three chat models have the same free limits (8000 tokens/min, 1000 requests/day); qwen

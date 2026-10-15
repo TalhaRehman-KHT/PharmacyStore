@@ -2,8 +2,12 @@
 
 from app.llm.providers import Usage
 from app.rag.deps import RagDeps
+from tests.fakes.llm import FakeFastLLM
 
 REPLY = ("Paracetamol can cause ", "skin reactions [1]. ", "Stop it and see a doctor.")
+# One JSON that every fast step of the agent accepts: router -> knowledge / en, rewrite -> empty
+# query (= the question itself is searched), grade -> wrong count (= every chunk is kept).
+FAST_REPLY = '{"route": "knowledge", "language": "en", "query": "", "grades": []}'
 
 
 def chunk_row(i: int, drug: str = "acetaminophen", section: str = "Warnings", text: str = ""):
@@ -56,8 +60,10 @@ class FakeLLM:
 
 class FakeRag:
     """Set `rows` (search results), `reply` (LLM pieces) or `error`, then use `deps()`.
+    `fast_replies` are the agent's fast-LLM replies, in call order (the last one repeats).
 
-    Registers the hybrid_search RPC on the FakeSupabase `db`; `llms` lists every LLM created.
+    Registers the hybrid_search RPC on the FakeSupabase `db`; `llms` lists every answer LLM
+    created, `fast_llms` every fast one.
     """
 
     def __init__(self, db) -> None:
@@ -68,6 +74,8 @@ class FakeRag:
         self.fail_after = 0
         self.embedder = FakeEmbedder()
         self.llms: list[FakeLLM] = []
+        self.fast_replies: list[str] = [FAST_REPLY]
+        self.fast_llms: list[FakeFastLLM] = []
         self.searches: list[dict] = []
         self.mode = "vector"  # RagDeps.retrieval_mode (the app default)
         db.rpc_handlers["hybrid_search"] = self._search
@@ -81,5 +89,18 @@ class FakeRag:
         self.llms.append(llm)
         return llm
 
+    def _new_fast_llm(self) -> FakeFastLLM:
+        reply = self.fast_replies.pop(0) if len(self.fast_replies) > 1 else self.fast_replies[0]
+        llm = FakeFastLLM(reply)
+        self.fast_llms.append(llm)
+        return llm
+
     def deps(self) -> RagDeps:
-        return RagDeps(self.db, self.embedder, FakeReranker(), self._new_llm, self.mode)
+        return RagDeps(
+            self.db,
+            self.embedder,
+            FakeReranker(),
+            self._new_llm,
+            self.mode,
+            fast_llm=self._new_fast_llm,
+        )

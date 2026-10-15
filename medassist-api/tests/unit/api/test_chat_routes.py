@@ -61,7 +61,7 @@ def test_ask_creates_session_and_two_messages(client, db, make_user):
     ]
     meta = body["meta"]
     assert meta["route"] == "knowledge"
-    assert meta["tokens"] == 120
+    assert meta["tokens"] == 360  # agent: router + grade + answer (120 each)
     assert meta["escalated"] is False
     assert "escalationStatus" not in meta  # None fields are dropped
     assert isinstance(meta["latencyMs"], int)
@@ -75,30 +75,80 @@ def test_ask_creates_session_and_two_messages(client, db, make_user):
     assert (user_msg["role"], user_msg["content"]) == ("user", question)
     assert bot_msg["role"] == "assistant"
     assert bot_msg["id"] == meta["messageId"]
-    assert (bot_msg["route"], bot_msg["variant"]) == ("knowledge", "naive")
+    assert (bot_msg["route"], bot_msg["variant"]) == ("knowledge", "agent")
     assert bot_msg["latency_ms"] == meta["latencyMs"]
-    assert bot_msg["tokens"] == 120
+    assert bot_msg["tokens"] == 360
     assert bot_msg["citations"] == body["citations"]
 
 
-def test_ask_variant_is_stored(client, db, make_user):
+@pytest.mark.parametrize("path", ["/ask", "/ask/stream"])
+def test_naive_variant_is_still_callable(client, db, make_user, rag, path):
     _, headers = make_user()
 
-    res = client.post("/ask?variant=naive", json={"question": "hi"}, headers=headers)
+    res = client.post(f"{path}?variant=naive", json={"question": "hi"}, headers=headers)
 
     assert res.status_code == 200
     assert db.rows("chat_messages")[-1]["variant"] == "naive"
+    assert rag.fast_llms == []  # the baseline has no router / rewrite / grade
 
 
-@pytest.mark.parametrize("variant", ["rewrite", "agent"])
-def test_variant_not_built_yet_returns_422(client, db, make_user, variant):
+@pytest.mark.parametrize("path", ["/ask", "/ask/stream"])
+def test_rewrite_variant_not_built_returns_422(client, db, make_user, path):
     _, headers = make_user()
 
-    res = client.post(f"/ask?variant={variant}", json={"question": "hi"}, headers=headers)
+    res = client.post(f"{path}?variant=rewrite", json={"question": "hi"}, headers=headers)
 
     assert res.status_code == 422
-    assert res.json()["message"] == f"variant: '{variant}' is not available yet"
+    assert res.json()["message"] == "variant: 'rewrite' is not available yet"
     assert db.rows("chat_messages") == []
+
+
+def test_agent_product_question_returns_cards(client, db, make_user, rag):
+    """route product: no label search, no answer LLM; the shop card is in meta and stored."""
+    _, headers = make_user()
+    vendor = db.seed("users", name="Vendor", role="vendor", is_active=True)
+    pharmacy = db.seed("pharmacies", vendor_id=vendor["id"], name="City Pharmacy", is_active=True)
+    med = db.seed("medicines", name="Panadol 500mg", generic_name="paracetamol", image_url=None)
+    db.seed(
+        "medicine_batches",
+        medicine_id=med["id"],
+        pharmacy_id=pharmacy["id"],
+        quantity=5,
+        expiry_date="2999-01-01",
+        selling_price=45,
+    )
+    db.seed(
+        "drug_synonyms", brand_name="Panadol", generic_name="paracetamol", us_name="acetaminophen"
+    )
+    rag.fast_replies = [
+        '{"route": "product", "language": "roman_urdu"}',
+        '{"query": "acetaminophen"}',
+    ]
+
+    res = ask(client, headers, "Panadol stock mein hai?")
+
+    body = res.json()
+    assert body["meta"]["route"] == "product"
+    [card] = body["meta"]["products"]
+    assert (card["name"], card["price"], card["inStock"]) == ("Panadol 500mg", 45.0, True)
+    assert card["pharmacyName"] == "City Pharmacy"
+    assert body["answer"].startswith("Hamari shop mein:")
+    assert "$45.00" in body["answer"]
+    assert body["citations"] == []
+    assert rag.llms == [] and rag.embedder.calls == []
+    assert db.rows("chat_messages")[-1]["products"][0]["batchId"] == card["batchId"]
+
+
+def test_agent_out_of_scope_needs_no_search(client, db, make_user, rag):
+    _, headers = make_user()
+    rag.fast_replies = ['{"route": "out_of_scope", "language": "en"}']
+
+    body = ask(client, headers, "What is the weather today?").json()
+
+    assert body["meta"]["route"] == "out_of_scope"
+    assert body["answer"].startswith("I can only help with medicines")
+    assert "products" not in body["meta"]
+    assert len(rag.fast_llms) == 1 and rag.llms == [] and rag.embedder.calls == []
 
 
 def test_ask_reuses_own_session(client, db, make_user):
@@ -179,6 +229,29 @@ def test_earlier_turns_go_into_the_prompt(client, db, make_user, rag):
     session_id = ask(client, headers, "What is paracetamol?").json()["meta"]["sessionId"]
 
     ask(client, headers, "And for children?", sessionId=session_id)
+
+    messages = rag.llms[-1].messages
+    roles = [type(m).__name__ for m in messages]
+    assert roles == ["SystemMessage", "HumanMessage", "AIMessage", "HumanMessage"]
+    assert messages[1].content == "What is paracetamol?"
+    assert "<question>\nAnd for children?\n</question>" in messages[3].content
+    # agent: the rewrite step sees the earlier chat (it turns "And for children?" into a query)
+    rewrite_prompt = rag.fast_llms[-2].prompt()
+    assert "Earlier chat:" in rewrite_prompt and "What is paracetamol?" in rewrite_prompt
+
+
+def test_naive_searches_with_the_previous_question(client, db, make_user, rag):
+    _, headers = make_user()
+    body = {"question": "What is paracetamol?"}
+    session_id = client.post("/ask?variant=naive", json=body, headers=headers).json()["meta"][
+        "sessionId"
+    ]
+
+    client.post(
+        "/ask?variant=naive",
+        json={"question": "And for children?", "sessionId": session_id},
+        headers=headers,
+    )
 
     messages = rag.llms[-1].messages
     roles = [type(m).__name__ for m in messages]
@@ -296,8 +369,8 @@ def test_no_chunks_gives_no_evidence(client, db, make_user, rag):
     assert text == naive.NO_EVIDENCE_TEXT["en"]
     assert events[-3] == ("citations", [])
     assert events[-2][1]["route"] == "no_evidence"
-    assert "tokens" not in events[-2][1]
-    assert rag.llms == []
+    assert len(rag.embedder.calls) == 2  # first query + one broader retry
+    assert rag.llms == []  # no answer LLM
     assert db.rows("chat_messages")[-1]["route"] == "no_evidence"
 
 

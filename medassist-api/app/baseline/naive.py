@@ -21,7 +21,7 @@ from app.rag.deps import RagDeps
 from app.rag.retrieve import retrieve
 from app.rag.search import SearchHit
 from app.repositories.knowledge import source_urls
-from app.schemas.chat import Citation
+from app.schemas.chat import Citation, ProductCard
 from app.schemas.common import Route
 from app.services.language import Language, detect_language
 
@@ -44,6 +44,7 @@ class RagAnswer:
     route: Route
     citations: list[Citation] = field(default_factory=list)
     tokens: int | None = None  # input + output tokens of the LLM call (None: no call)
+    products: list[ProductCard] = field(default_factory=list)  # agent only (shop cards)
 
 
 def used_numbers(text: str, n_chunks: int) -> list[int]:

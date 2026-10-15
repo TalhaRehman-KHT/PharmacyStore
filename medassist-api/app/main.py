@@ -16,6 +16,7 @@ from app.api import routes
 from app.config import get_settings
 from app.db import client as db_client
 from app.errors import BUSY_MESSAGE, Conflict, NotFound
+from app.graph.build import agent_graph, enable_tracing
 from app.llm.providers import AllProvidersBusy
 from app.rag.deps import create_rag_deps
 from app.rate_limit import limiter, retry_after_seconds
@@ -33,7 +34,14 @@ async def lifespan(app: FastAPI):
     app.state.db = await db_client.create_db(settings)
     http = httpx.AsyncClient(timeout=30)  # query embeddings (Gemini)
     app.state.rag = create_rag_deps(app.state.db, settings, http)
-    logger.info("MedAssist API %s started (env=%s)", settings.app_version, settings.app_env)
+    agent_graph()  # compile the agent once, at startup
+    tracing = enable_tracing(settings)
+    logger.info(
+        "MedAssist API %s started (env=%s, langsmith=%s)",
+        settings.app_version,
+        settings.app_env,
+        "on" if tracing else "off",
+    )
     if settings.auth_mode == "app_user_id":
         logger.warning(
             "auth_mode=app_user_id: user id is trusted from the client (same level as the main app)"

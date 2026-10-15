@@ -9,6 +9,7 @@ import re
 from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
+from typing import Literal
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
@@ -17,7 +18,13 @@ from app.services.language import Language
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 NO_CONTEXT = "(no context found)"
-LANGUAGE_NAMES: dict[Language, str] = {"en": "English", "roman_urdu": "Roman Urdu"}
+# "urdu" (Urdu script) comes from the agent's router; the naive baseline only knows en / roman_urdu.
+ReplyLanguage = Language | Literal["urdu"]
+LANGUAGE_NAMES: dict[ReplyLanguage, str] = {
+    "en": "English",
+    "roman_urdu": "Roman Urdu",
+    "urdu": "Urdu (Urdu script)",
+}
 HISTORY_CHARS = 600  # earlier messages are cut to this length (tokens are the Groq limit)
 
 Turn = tuple[str, str]  # (role, content): role = "user" | "assistant" | "pharmacist"
@@ -60,7 +67,7 @@ def answer_messages(
     question: str,
     chunks: Sequence[SearchHit],
     history: Sequence[Turn] = (),
-    language: Language = "en",
+    language: ReplyLanguage = "en",
 ) -> list[BaseMessage]:
     """System message = rules only (answer.txt); then the earlier turns; last the human message with
     the numbered context, the question and the reply language (answer_user.txt).

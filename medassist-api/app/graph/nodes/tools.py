@@ -23,7 +23,7 @@ from datetime import date
 from supabase import AsyncClient
 
 from app.graph.drugs import CatalogCache, DrugCatalog
-from app.graph.state import AgentState, add_timing
+from app.graph.state import AgentLanguage, AgentState, add_timing
 from app.schemas.chat import ProductCard
 
 MAX_PRODUCTS = 3  # cards under one answer
@@ -199,6 +199,61 @@ async def search_products(
                 today=today,
             ) or None
     return cards
+
+
+# Fixed product texts (no LLM: prices and stock come straight from the cards, nothing invented).
+PRODUCT_TEXTS: dict[AgentLanguage, dict[str, str]] = {
+    "en": {
+        "header": "In our shop:",
+        "in_stock": "- {name}: in stock, {price} at {pharmacy}.",
+        "out_of_stock": "- {name}: out of stock right now.",
+        "alternatives": " Same medicine available: {names}.",
+        "not_found": "I could not find this medicine in our shop right now.",
+        "no_name": "Which medicine are you looking for? Please write its name.",
+    },
+    "roman_urdu": {
+        "header": "Hamari shop mein:",
+        "in_stock": "- {name}: stock mein hai, {price} ({pharmacy}).",
+        "out_of_stock": "- {name}: abhi stock mein nahi.",
+        "alternatives": " Yahi dawa yahan maujood hai: {names}.",
+        "not_found": "Ye dawa abhi hamari shop mein nahi mili.",
+        "no_name": "Aap kaun si dawa dhoond rahe hain? Us ka naam likhein.",
+    },
+    "urdu": {
+        "header": "ہماری شاپ میں:",
+        "in_stock": "- {name}: دستیاب ہے، {price} ({pharmacy})۔",
+        "out_of_stock": "- {name}: ابھی دستیاب نہیں۔",
+        "alternatives": " یہی دوا یہاں موجود ہے: {names}۔",
+        "not_found": "یہ دوا ابھی ہماری شاپ میں نہیں ملی۔",
+        "no_name": "آپ کون سی دوا ڈھونڈ رہے ہیں؟ اس کا نام لکھیں۔",
+    },
+}
+CURRENCY_SYMBOLS = {"USD": "$"}  # same "$" as the shop pages (Client utils.formatPrice)
+
+
+def format_price(amount: float | None, currency: str) -> str:
+    """45 USD -> "$45.00"; other codes -> "PKR 45.00"."""
+    symbol = CURRENCY_SYMBOLS.get(currency, f"{currency} ")
+    return f"{symbol}{amount or 0:.2f}"
+
+
+def product_text(products: list[ProductCard], language: AgentLanguage, *, asked: bool) -> str:
+    """Short text over the product cards, one line per card. `asked` = the message named a drug
+    (no cards + no name -> ask for the name instead of "not found")."""
+    t = PRODUCT_TEXTS[language]
+    if not products:
+        return t["not_found"] if asked else t["no_name"]
+    lines = [t["header"]]
+    for p in products:
+        if p.in_stock:
+            price = format_price(p.price, p.currency)
+            lines.append(t["in_stock"].format(name=p.name, price=price, pharmacy=p.pharmacy_name))
+            continue
+        line = t["out_of_stock"].format(name=p.name)
+        if p.alternatives:
+            line += t["alternatives"].format(names=", ".join(a.name for a in p.alternatives))
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def shop_names(catalog: DrugCatalog, drug_names: Iterable[str]) -> list[str]:

@@ -116,7 +116,12 @@ def test_after_grade():
 )
 def test_no_evidence_in_the_user_language(language, text):
     update = no_evidence({"question": "q", "language": language})
-    assert update == {"answer": text, "citations": [], "route": "no_evidence"}
+    assert update == {
+        "answer": text,
+        "citations": [],
+        "route": "no_evidence",
+        "product_results": [],  # no cards under an unanswered knowledge question
+    }
 
 
 def test_no_evidence_without_language_uses_the_keyword_detector():

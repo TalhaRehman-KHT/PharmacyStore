@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from uuid import UUID
 
 from app.baseline import naive
+from app.graph import build
 from app.rag.deps import RagDeps
 from app.repositories import Repos
 from app.schemas.chat import AnswerMeta, AskRequest, AskResponse
@@ -41,7 +42,7 @@ async def answer_stream(
     user_id: UUID,
     session_id: UUID,
     body: AskRequest,
-    variant: Variant = "naive",
+    variant: Variant = "agent",
 ) -> AsyncIterator[str | AskResponse]:
     """Answer one turn in an already resolved session: text pieces (str) while the answer is
     written, then the stored AskResponse. Both messages are persisted."""
@@ -61,12 +62,22 @@ async def answer_stream(
             yield piece
         result = naive.RagAnswer(text, "escalated")
     else:
-        async for item in naive.answer_stream(body.question, rag, history):
+        if variant == "agent":
+            pipeline = build.stream_agent(
+                body.question,
+                rag,
+                history,
+                user_id=str(user_id),
+                pharmacy_id=str(body.pharmacy_id) if body.pharmacy_id else None,
+            )
+        else:
+            pipeline = naive.answer_stream(body.question, rag, history)
+        async for item in pipeline:
             if isinstance(item, naive.RagAnswer):
                 result = item
             else:
                 yield item
-    assert result is not None  # naive.answer_stream always ends with its RagAnswer
+    assert result is not None  # both pipelines end with their RagAnswer
     latency_ms = int((time.perf_counter() - started) * 1000)
 
     message = await repos.add_message(
@@ -76,6 +87,7 @@ async def answer_stream(
         content=result.text,
         route=result.route,
         citations=result.citations,
+        products=result.products,
         variant=variant,
         latency_ms=latency_ms,
         tokens=result.tokens,
@@ -98,6 +110,7 @@ async def answer_stream(
         escalated=reason is not None,
         escalation_reason=reason,
         escalation_status="pending" if reason else None,
+        products=result.products or None,
         latency_ms=latency_ms,
         tokens=result.tokens,
     )
@@ -110,7 +123,7 @@ async def answer_question(
     user_id: UUID,
     session_id: UUID,
     body: AskRequest,
-    variant: Variant = "naive",
+    variant: Variant = "agent",
 ) -> AskResponse:
     """The same turn as answer_stream, returned in one piece (POST /ask)."""
     async for item in answer_stream(repos, rag, user_id, session_id, body, variant):

@@ -2,11 +2,13 @@
 
 Reached after the grader kept nothing twice (first query + one broader retry). No LLM call:
 a fixed text cannot invent anything. Same words as the naive baseline (en / roman_urdu), plus
-an Urdu-script version for the agent's third language.
+an Urdu-script version for the agent's third language. For a "both" question the shop part
+still works, so the product text (graph/nodes/tools.py) follows the no-evidence text.
 """
 
 from app.baseline.naive import NO_EVIDENCE_TEXT
 from app.graph.nodes.router import keyword_language
+from app.graph.nodes.tools import product_text
 from app.graph.state import AgentLanguage, AgentState
 
 URDU_NO_EVIDENCE = (
@@ -21,6 +23,13 @@ def no_evidence_text(language: AgentLanguage) -> str:
 
 
 def no_evidence(state: AgentState) -> dict:
-    """Partial update: answer (fixed text), citations [], route "no_evidence"."""
+    """Partial update: answer (fixed text, + product text for "both"), citations [],
+    route "no_evidence", product_results [] unless "both" (no cards under an unanswered
+    knowledge question)."""
     language = state.get("language") or keyword_language(state["question"])
-    return {"answer": no_evidence_text(language), "citations": [], "route": "no_evidence"}
+    answer = no_evidence_text(language)
+    if state.get("route") != "both":
+        return {"answer": answer, "citations": [], "route": "no_evidence", "product_results": []}
+    products = state.get("product_results") or []
+    answer += "\n\n" + product_text(products, language, asked=bool(state.get("drug_names")))
+    return {"answer": answer, "citations": [], "route": "no_evidence"}

@@ -45,7 +45,8 @@ User = Annotated[CurrentUser, Depends(get_current_user)]
 Staff = Annotated[CurrentUser, Depends(require_staff)]
 ReposDep = Annotated[Repos, Depends(get_repos)]
 RagDep = Annotated[RagDeps, Depends(get_rag)]
-BUILT_VARIANTS: set[Variant] = {"naive"}  # "rewrite" and "agent" come with the LangGraph stages
+BUILT_VARIANTS: set[Variant] = {"agent", "naive"}  # agent = default; naive = research baseline
+VariantQuery = Annotated[Variant, Query()]
 
 
 async def get_scope(staff: Staff, repos: ReposDep) -> EscalationScope:
@@ -76,9 +77,10 @@ async def ask(
     user: User,
     repos: ReposDep,
     rag: RagDep,
-    variant: Annotated[Variant, Query()] = "naive",
+    variant: VariantQuery = "agent",
 ) -> AskResponse:
-    """Answer a question in one response (variant picks the pipeline, for evaluation)."""
+    """Answer a question in one response. variant: agent (default, LangGraph) or naive (the
+    plain RAG baseline, kept for evaluation)."""
     _check_variant(variant)
     await _check_pharmacy(repos, body)
     session_id = await chat.resolve_session(repos, user.id, body)
@@ -92,7 +94,12 @@ def _event(name: str, data) -> ServerSentEvent:
 @router.post("/ask/stream", response_class=EventSourceResponse, tags=["chat"], **_ASK)
 @ask_limit
 async def ask_stream(
-    request: Request, body: AskRequest, user: User, repos: ReposDep, rag: RagDep
+    request: Request,
+    body: AskRequest,
+    user: User,
+    repos: ReposDep,
+    rag: RagDep,
+    variant: VariantQuery = "agent",
 ) -> EventSourceResponse:
     """Stream an answer as SSE.
 
@@ -100,14 +107,18 @@ async def ask_stream(
     `citations` (data: Citation[]), `meta` (data: AnswerMeta), `done` (data: {}).
     On failure: `error` (data: {status, message}), also after some tokens were sent.
     Session ownership and pharmacyId are checked before the stream starts (plain HTTP errors).
+    variant: agent (default) or naive, as for /ask.
     """
+    _check_variant(variant)
     await _check_pharmacy(repos, body)
     session_id = await chat.resolve_session(repos, user.id, body)
 
     async def events() -> AsyncIterator[ServerSentEvent]:
         result: AskResponse | None = None
         try:
-            async for item in chat.answer_stream(repos, rag, user.id, session_id, body):
+            async for item in chat.answer_stream(
+                repos, rag, user.id, session_id, body, variant
+            ):
                 if isinstance(item, AskResponse):
                     result = item
                 else:

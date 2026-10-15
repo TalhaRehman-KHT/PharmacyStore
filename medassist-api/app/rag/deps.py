@@ -4,12 +4,13 @@ Tests build a RagDeps with fakes (tests/fakes/rag.py) instead of real API client
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
 from app.config import Settings
+from app.graph.drugs import CatalogCache
 from app.llm.providers import LLM, get_llm
 from app.rag.embed import embedder_from_settings
 from app.rag.rerank import Reranker
@@ -23,6 +24,10 @@ class RagDeps:
     reranker: Any  # rerank(query, hits, top_n) -> hits; None when reranking is off
     answer_llm: Callable[[], LLM]  # a NEW LLM per request (LLM.last_usage is per call)
     retrieval_mode: Mode = "vector"
+    # agent only: the fast LLM of router / rewrite / grade, the drug catalog, SHOP_CURRENCY
+    fast_llm: Callable[[], LLM] | None = None
+    catalog: CatalogCache = field(default_factory=CatalogCache)
+    shop_currency: str = "USD"
 
 
 def retrieval_mode(settings: Settings) -> Mode:
@@ -39,4 +44,6 @@ def create_rag_deps(db: Any, settings: Settings, http: httpx.AsyncClient) -> Rag
         reranker=Reranker(model_name=settings.rerank_model) if settings.rerank_enabled else None,
         answer_llm=lambda: get_llm("answer", settings),
         retrieval_mode=retrieval_mode(settings),
+        fast_llm=lambda: get_llm("fast", settings),
+        shop_currency=settings.shop_currency,
     )
