@@ -7,19 +7,41 @@ import { retryMinutes } from "../utils.js";
 
 const STICK_THRESHOLD_PX = 80;
 
+/** Answer-shaped skeleton (one sentence + two bullets) shown until the first token arrives. */
 function SearchingIndicator() {
   return (
-    <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-white border border-gray-100 w-fit">
-      <span className="flex gap-1" aria-hidden="true">
-        {[0, 150, 300].map((delay) => (
-          <span
-            key={delay}
-            className="w-1.5 h-1.5 rounded-full bg-primary-green animate-bounce"
-            style={{ animationDelay: `${delay}ms` }}
-          />
-        ))}
-      </span>
-      <span className="text-xs text-text-secondary">Searching drug labels…</span>
+    <div className="max-w-[92%] w-72 px-3.5 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)]">
+      <div className="flex items-center gap-2">
+        <span className="flex gap-1" aria-hidden="true">
+          {[0, 150, 300].map((delay) => (
+            <span
+              key={delay}
+              className="w-1.5 h-1.5 rounded-full bg-primary-green animate-bounce"
+              style={{ animationDelay: `${delay}ms` }}
+            />
+          ))}
+        </span>
+        <span className="text-xs text-text-secondary">Searching drug labels…</span>
+      </div>
+      <div className="mt-3 space-y-2" aria-hidden="true">
+        <div className="h-3 w-full rounded-md bg-gray-100 animate-pulse" />
+        <div className="h-3 w-4/5 rounded-md bg-gray-100 animate-pulse" />
+        <div className="h-3 w-3/5 rounded-md bg-gray-100 animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+/** Two placeholder bubbles while a past session loads. */
+function SessionSkeleton() {
+  return (
+    <div className="space-y-3" aria-hidden="true">
+      <div className="ml-auto h-9 w-1/2 rounded-2xl rounded-br-md bg-primary-green/15 animate-pulse" />
+      <div className="w-3/4 space-y-2 px-3.5 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-100">
+        <div className="h-3 w-full rounded-md bg-gray-100 animate-pulse" />
+        <div className="h-3 w-4/5 rounded-md bg-gray-100 animate-pulse" />
+        <div className="h-3 w-2/5 rounded-md bg-gray-100 animate-pulse" />
+      </div>
     </div>
   );
 }
@@ -104,7 +126,7 @@ export default function MessageList({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-background px-3 py-4"
+      className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain bg-background px-3 py-4"
     >
       <div
         aria-live="polite"
@@ -136,11 +158,7 @@ export default function MessageList({
         })}
 
         {/* Loading with no messages only happens while a past session loads. */}
-        {status === "loading" && messages.length === 0 && (
-          <div className="flex justify-center py-16">
-            <div className="w-10 h-10 border-2 border-primary-green border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
+        {status === "loading" && messages.length === 0 && <SessionSkeleton />}
         {status === "error" && error && (
           <ErrorNotice error={error} rateLimitedUntil={rateLimitedUntil} onRetry={onRetry} />
         )}

@@ -26,6 +26,7 @@ from app.services.language import detect_language
 
 FALLBACK_ROUTE: AgentRoute = "knowledge"
 _URDU_SCRIPT = re.compile(r"[؀-ۿ]")
+_TAGS = re.compile(r"</?\s*message\s*>", re.IGNORECASE)  # the question cannot close its own tag
 
 
 class RouterDecision(BaseModel):
@@ -44,7 +45,7 @@ def router_messages(state: AgentState) -> list:
     earlier = f"Earlier chat:\n{history}\n\n" if history else ""
     return [
         SystemMessage(load_prompt("router")),
-        HumanMessage(f"{earlier}<message>\n{state['question']}\n</message>"),
+        HumanMessage(f"{earlier}<message>\n{_TAGS.sub('', state['question'])}\n</message>"),
     ]
 
 

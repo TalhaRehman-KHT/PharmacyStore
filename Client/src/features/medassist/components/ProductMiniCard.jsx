@@ -10,13 +10,19 @@ export default function ProductMiniCard({ product, onAdd, addingId, compact = fa
   const alternatives = !product.inStock ? product.alternatives || [] : [];
 
   return (
-    <div className={compact ? "" : "rounded-xl border border-gray-100 bg-white shadow-[0_4px_10px_var(--color-card-shadow)] p-3"}>
-      <div className="flex items-center gap-3">
+    <div
+      className={
+        compact
+          ? ""
+          : "rounded-2xl border border-gray-100 bg-white shadow-[0_4px_10px_var(--color-card-shadow)] p-3 hover:border-primary-green/30 transition-colors"
+      }
+    >
+      <div className="flex items-center gap-3 min-w-0">
         <div
           className={`${compact ? "w-9 h-9" : "w-12 h-12"} rounded-xl overflow-hidden bg-gradient-to-br from-primary-green/10 to-primary-green/5 flex items-center justify-center shrink-0`}
         >
           {product.imageUrl ? (
-            <img src={product.imageUrl} alt="" className="w-full h-full object-cover" />
+            <img src={product.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
           ) : (
             <Pill className={`${compact ? "w-4 h-4" : "w-6 h-6"} text-primary-green`} />
           )}
@@ -32,7 +38,7 @@ export default function ProductMiniCard({ product, onAdd, addingId, compact = fa
               <span className="truncate">{product.pharmacyName}</span>
             </p>
           )}
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
             {product.price != null && (
               <span className="text-sm font-bold text-primary-green">
                 {formatPrice(product.price, product.currency)}
@@ -56,7 +62,7 @@ export default function ProductMiniCard({ product, onAdd, addingId, compact = fa
             onClick={() => onAdd(product)}
             disabled={adding}
             aria-label={`Add ${product.name} to cart`}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-primary-green text-white text-xs font-semibold hover:bg-dark-green transition-colors disabled:opacity-60 shrink-0"
+            className="inline-flex items-center justify-center gap-1 min-h-9 min-w-9 px-3 py-2 rounded-xl bg-primary-green text-white text-xs font-semibold hover:bg-dark-green transition-colors disabled:opacity-60 shrink-0"
           >
             {adding ? (
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
