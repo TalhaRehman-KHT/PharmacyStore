@@ -39,6 +39,12 @@ async def list_documents(db) -> list[dict]:
     return res.data or []
 
 
+async def list_synonyms(db) -> list[dict]:
+    """All drug_synonyms rows: brand_name, generic_name, us_name (a few dozen, one request)."""
+    res = await db.table("drug_synonyms").select("brand_name, generic_name, us_name").execute()
+    return res.data or []
+
+
 async def source_urls(db, drug_names: list[str]) -> dict[str, str]:
     """{generic_name: source_url} for these drugs, in one request (no URL = left out)."""
     if not drug_names:
