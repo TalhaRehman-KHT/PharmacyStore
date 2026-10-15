@@ -65,7 +65,7 @@ export default function ChatPanel({ chat, loggedIn, productName, rateLimitedUnti
       aria-modal="false"
       aria-labelledby="medassist-title"
       tabIndex={-1}
-      className="fixed z-[60] inset-0 sm:inset-auto sm:right-6 sm:bottom-6 sm:w-[380px] sm:h-[600px] sm:max-h-[calc(100dvh-3rem)] flex flex-col bg-white sm:rounded-2xl sm:border sm:border-gray-100 shadow-2xl overflow-hidden focus:outline-none"
+      className="fixed z-60 inset-0 sm:inset-auto sm:right-6 sm:bottom-6 sm:w-[380px] sm:h-[600px] sm:max-h-[calc(100dvh-3rem)] flex flex-col bg-white sm:rounded-2xl sm:border sm:border-gray-100 shadow-2xl overflow-hidden focus:outline-none"
     >
       <header className="shrink-0 flex items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sm:pt-3 border-b border-border bg-white">
         <div className="w-9 h-9 rounded-xl bg-primary-green/10 flex items-center justify-center shrink-0">

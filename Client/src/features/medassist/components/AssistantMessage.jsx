@@ -87,7 +87,7 @@ export default function AssistantMessage({ message, streaming, onRate, onAdd, ad
     <div className="max-w-[92%]">
       {meta?.escalated && <EscalationBanner status={meta.escalationStatus} />}
 
-      <div className="px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-white border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] text-sm text-text-primary break-words">
+      <div className="px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-white border border-gray-100 shadow-[0_4px_10px_var(--color-card-shadow)] text-sm text-text-primary wrap-break-word">
         <span className="sr-only">MedAssist: </span>
         <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={components}>
           {linkCitations(message.content)}
