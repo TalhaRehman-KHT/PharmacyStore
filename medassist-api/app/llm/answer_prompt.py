@@ -13,6 +13,7 @@ from typing import Literal
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
+from app.config import get_settings
 from app.rag.search import SearchHit
 from app.services.language import Language
 
@@ -71,7 +72,9 @@ def answer_messages(
 ) -> list[BaseMessage]:
     """System message = rules only (answer.txt); then the earlier turns; last the human message with
     the numbered context, the question and the reply language (answer_user.txt).
-    str.replace, not str.format: label text may contain { }."""
+    str.replace, not str.format: label text may contain { }.
+    {emergency_number} in answer.txt = settings.emergency_number (EMERGENCY_NUMBER)."""
+    system = load_prompt("answer").replace("{emergency_number}", get_settings().emergency_number)
     user = (
         load_prompt("answer_user")
         .replace("{context}", format_context(chunks))
@@ -79,7 +82,7 @@ def answer_messages(
         .replace("{language}", LANGUAGE_NAMES[language])
     )
     return [
-        SystemMessage(content=load_prompt("answer")),
+        SystemMessage(content=system),
         *history_messages(history),
         HumanMessage(content=user),
     ]

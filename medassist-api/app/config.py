@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # (Server STRIPE_CURRENCY default), so product cards use the same.
     shop_currency: str = "USD"
 
+    # Number in the fixed emergency text (guard.py) and the answer prompt. 1122 = Rescue (Pakistan).
+    emergency_number: str = "1122"
+
     cors_origins: list[str] = ["http://localhost:5173"]
     rate_limit: str = "20/hour"
 

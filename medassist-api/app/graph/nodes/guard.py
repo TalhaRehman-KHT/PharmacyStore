@@ -13,8 +13,11 @@ Two layers:
 What happens next (graph/build.py): emergency -> the emergency node (fixed text, no LLM);
 personal_dosing / prescription_only / pregnancy_or_child -> the normal path for general cited label
 info, then the escalate node (graph/nodes/escalate.py); safe -> the normal path.
+
+Every decision is logged as one line: category, which layer decided, ms. Never the question text.
 """
 
+import logging
 import re
 import time
 from collections.abc import Callable, Sequence
@@ -26,6 +29,7 @@ import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
+from app.config import get_settings
 from app.graph.nodes.router import keyword_language
 from app.graph.state import AgentLanguage, AgentState
 from app.graph.structured import ask_json, format_history
@@ -33,18 +37,23 @@ from app.llm.answer_prompt import Turn, load_prompt
 from app.schemas.common import EscalationReason
 
 Safety = Literal["emergency", "personal_dosing", "prescription_only", "pregnancy_or_child", "safe"]
+# Which layer decided: a rule, the fast LLM, or the "safe" default (no LLM / unparsable reply).
+Layer = Literal["rule", "llm", "default"]
 RISKY: tuple[EscalationReason, ...] = ("personal_dosing", "prescription_only", "pregnancy_or_child")
 KEYWORDS_FILE = Path(__file__).resolve().parents[2] / "safety" / "keywords.yaml"
+
+logger = logging.getLogger(__name__)
 
 # A rule = the regexes that must ALL match (a plain string in the YAML is a rule of one).
 Rule = tuple[re.Pattern, ...]
 
+# {number} = settings.emergency_number (EMERGENCY_NUMBER, default 1122).
 EMERGENCY_TEXT: dict[AgentLanguage, str] = {
-    "en": "This may be a medical emergency. Call 1122 (Rescue) or go to the nearest emergency "
+    "en": "This may be a medical emergency. Call {number} (Rescue) or go to the nearest emergency "
     "department now. Do not wait for an online reply.",
-    "roman_urdu": "Ye medical emergency ho sakti hai. Abhi 1122 (Rescue) par call karein ya "
+    "roman_urdu": "Ye medical emergency ho sakti hai. Abhi {number} (Rescue) par call karein ya "
     "qareebi hospital ki emergency mein jayen. Online jawab ka intezar na karein.",
-    "urdu": "یہ میڈیکل ایمرجنسی ہو سکتی ہے۔ ابھی 1122 (ریسکیو) پر کال کریں یا قریبی ہسپتال کی "
+    "urdu": "یہ میڈیکل ایمرجنسی ہو سکتی ہے۔ ابھی {number} (ریسکیو) پر کال کریں یا قریبی ہسپتال کی "
     "ایمرجنسی میں جائیں۔ آن لائن جواب کا انتظار نہ کریں۔",
 }
 
@@ -95,15 +104,19 @@ def guard_messages(question: str, history: Sequence[Turn]) -> list:
 
 async def classify(
     question: str, history: Sequence[Turn] = (), *, llm_factory: Callable | None = None
-) -> tuple[Safety, int]:
-    """(category, tokens). Rules first; a fast LLM is made (llm_factory) and asked only when no
-    rule matched. Without a factory only the rules run."""
+) -> tuple[Safety, int, Layer]:
+    """(category, tokens, layer). Rules first; a fast LLM is made (llm_factory) and asked only when
+    no rule matched. Without a factory only the rules run."""
     category = rule_category(question)
-    if category is not None or llm_factory is None:
-        return category or "safe", 0
+    if category is not None:
+        return category, 0, "rule"
+    if llm_factory is None:
+        return "safe", 0, "default"
     messages = guard_messages(question, history)
     decision, tokens = await ask_json(llm_factory(), messages, GuardDecision)
-    return (decision.category if decision else "safe"), tokens
+    if decision is None:
+        return "safe", tokens, "default"
+    return decision.category, tokens, "llm"
 
 
 async def guard(state: AgentState, *, llm_factory: Callable | None) -> dict:
@@ -111,8 +124,9 @@ async def guard(state: AgentState, *, llm_factory: Callable | None) -> dict:
     timings["guard"]. `llm_factory` makes the fast LLM, called only when no rule matched."""
     start = time.perf_counter()
     history = state.get("history") or []
-    category, tokens = await classify(state["question"], history, llm_factory=llm_factory)
+    category, tokens, layer = await classify(state["question"], history, llm_factory=llm_factory)
     ms = round((time.perf_counter() - start) * 1000)
+    logger.info("guard category=%s layer=%s ms=%s", category, layer, ms)
     return {
         "safety": category,
         "escalation_reason": category if category in RISKY else None,
@@ -125,4 +139,5 @@ def emergency(state: AgentState) -> dict:
     """Emergency node. Partial update: answer (fixed emergency text in the question's language),
     citations [], route "emergency". No search and no LLM text."""
     language = state.get("language") or keyword_language(state["question"])
-    return {"answer": EMERGENCY_TEXT[language], "citations": [], "route": "emergency"}
+    text = EMERGENCY_TEXT[language].replace("{number}", get_settings().emergency_number)
+    return {"answer": text, "citations": [], "route": "emergency"}
