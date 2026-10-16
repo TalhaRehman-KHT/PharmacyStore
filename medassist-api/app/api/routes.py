@@ -33,6 +33,7 @@ from app.services import chat
 
 logger = logging.getLogger(__name__)
 
+
 async def _log_user(user: Annotated[CurrentUser, Depends(get_current_user)]) -> None:
     """Dependency: put the caller's id on the request's access log line."""
     set_request_fields(user_id=str(user.id))
@@ -68,8 +69,12 @@ async def _check_pharmacy(repos: Repos, body: AskRequest) -> None:
 
 
 @router.post(
-    "/ask", response_model=AskResponse, tags=["chat"], dependencies=[Depends(ask_quota)],
-    **_OUT, **_ASK,
+    "/ask",
+    response_model=AskResponse,
+    tags=["chat"],
+    dependencies=[Depends(ask_quota)],
+    **_OUT,
+    **_ASK,
 )
 async def ask(
     body: AskRequest,
@@ -209,8 +214,13 @@ async def reply_escalation(
     await repos.answer_escalation(escalation_id, staff.id, body.reply, scope)
     audit_logger.info(
         "escalation_answered",
-        extra={"fields": {"staff_id": str(staff.id), "staff_role": staff.role,
-                          "escalation_id": str(escalation_id)}},
+        extra={
+            "fields": {
+                "staff_id": str(staff.id),
+                "staff_role": staff.role,
+                "escalation_id": str(escalation_id),
+            }
+        },
     )
 
 

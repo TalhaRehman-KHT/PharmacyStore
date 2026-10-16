@@ -149,10 +149,20 @@ async def seed_conversation(db: AsyncClient, user_id: str) -> dict:
         await db.table("chat_messages")
         .insert(
             [
-                {"session_id": session["id"], "user_id": user_id, "role": "user",
-                 "content": f"{PREFIX} kitni dose"},
-                {"session_id": session["id"], "user_id": user_id, "role": "assistant",
-                 "content": f"{PREFIX} answer", "route": "escalated", "variant": "agent"},
+                {
+                    "session_id": session["id"],
+                    "user_id": user_id,
+                    "role": "user",
+                    "content": f"{PREFIX} kitni dose",
+                },
+                {
+                    "session_id": session["id"],
+                    "user_id": user_id,
+                    "role": "assistant",
+                    "content": f"{PREFIX} answer",
+                    "route": "escalated",
+                    "variant": "agent",
+                },
             ]
         )
         .execute()
@@ -160,8 +170,13 @@ async def seed_conversation(db: AsyncClient, user_id: str) -> dict:
     escalation = (
         await db.table("escalations")
         .insert(
-            {"message_id": answer["id"], "session_id": session["id"], "user_id": user_id,
-             "question": f"{PREFIX} kitni dose", "reason": "personal_dosing"}
+            {
+                "message_id": answer["id"],
+                "session_id": session["id"],
+                "user_id": user_id,
+                "question": f"{PREFIX} kitni dose",
+                "reason": "personal_dosing",
+            }
         )
         .execute()
     ).data[0]
@@ -170,8 +185,12 @@ async def seed_conversation(db: AsyncClient, user_id: str) -> dict:
         .insert({"message_id": answer["id"], "user_id": user_id, "rating": 1})
         .execute()
     ).data[0]
-    return {"session": session, "messages": [question["id"], answer["id"]],
-            "escalation": escalation, "feedback": feedback}
+    return {
+        "session": session,
+        "messages": [question["id"], answer["id"]],
+        "escalation": escalation,
+        "feedback": feedback,
+    }
 
 
 async def check_db(db: AsyncClient, settings: Settings, report: Report) -> None:
@@ -192,10 +211,17 @@ async def check_db(db: AsyncClient, settings: Settings, report: Report) -> None:
             return "SKIPPED: SUPABASE_ANON_KEY not set"
         anon_db = await acreate_client(settings.supabase_url, key)
         calls = {
-            "answer_escalation": {"p_id": str(uuid4()), "p_pharmacist": str(uuid4()),
-                                  "p_reply": f"{PREFIX} x"},
-            "hybrid_search": {"query_embedding": [0.0] * settings.embed_dim,
-                              "query_text": "ibuprofen", "match_count": 1, "drug_filter": None},
+            "answer_escalation": {
+                "p_id": str(uuid4()),
+                "p_pharmacist": str(uuid4()),
+                "p_reply": f"{PREFIX} x",
+            },
+            "hybrid_search": {
+                "query_embedding": [0.0] * settings.embed_dim,
+                "query_text": "ibuprofen",
+                "match_count": 1,
+                "drug_filter": None,
+            },
         }
         for name, params in calls.items():
             try:
@@ -217,8 +243,11 @@ async def check_db(db: AsyncClient, settings: Settings, report: Report) -> None:
         await delete_check_sessions(db, user["id"])  # leftovers of a crashed run
         try:
             seeded = await seed_conversation(db, user["id"])
-            params = {"p_id": seeded["escalation"]["id"], "p_pharmacist": user["id"],
-                      "p_reply": f"{PREFIX} pharmacist reply"}
+            params = {
+                "p_id": seeded["escalation"]["id"],
+                "p_pharmacist": user["id"],
+                "p_reply": f"{PREFIX} pharmacist reply",
+            }
             first = await db.rpc("answer_escalation", params).execute()
             second = await db.rpc("answer_escalation", params).execute()
             expect(first.data == seeded["escalation"]["id"], f"first answer {first.data!r}")
@@ -260,8 +289,10 @@ async def check_retrieval(db: AsyncClient, settings: Settings, report: Report) -
             question = "ibuprofen side effects"
             hits = await hybrid_search(db, await embedder.embed_query(question), question)
             expect(len(hits) >= 1, "no chunks")
-            expect(all(h.vector_rank is not None or h.keyword_rank is not None for h in hits),
-                   "hit without a rank")
+            expect(
+                all(h.vector_rank is not None or h.keyword_rank is not None for h in hits),
+                "hit without a rank",
+            )
             scores = [h.rrf_score for h in hits]
             expect(scores == sorted(scores, reverse=True), "not sorted by rrf_score")
             return f"{len(hits)} chunks"
@@ -269,8 +300,9 @@ async def check_retrieval(db: AsyncClient, settings: Settings, report: Report) -
         async def golden():
             threshold = float(os.environ.get("GOLDEN_RECALL_MIN", "0.8"))
             loaded = await embedded_drugs(db)
-            questions = [q for q in read_csv("questions.csv")
-                         if q["expected_drug"].lower() in loaded]
+            questions = [
+                q for q in read_csv("questions.csv") if q["expected_drug"].lower() in loaded
+            ]
             if not questions:
                 return "SKIPPED: no golden question has its drug loaded yet"
             mode = retrieval_mode(settings)
@@ -279,14 +311,26 @@ async def check_retrieval(db: AsyncClient, settings: Settings, report: Report) -
             misses = []
             for q in questions:
                 vector = await embedder.embed_query(q["question"])
-                hits = await retrieve(db, reranker, q["question"], vector, mode=mode, top_k=K,
-                                      embed_model=embedder.model)
-                if not any(h.drug_name.lower() == q["expected_drug"].lower()
-                           and h.section == q["expected_section"] for h in hits[:K]):
+                hits = await retrieve(
+                    db,
+                    reranker,
+                    q["question"],
+                    vector,
+                    mode=mode,
+                    top_k=K,
+                    embed_model=embedder.model,
+                )
+                if not any(
+                    h.drug_name.lower() == q["expected_drug"].lower()
+                    and h.section == q["expected_section"]
+                    for h in hits[:K]
+                ):
                     misses.append(q["question"])
             recall = 1 - len(misses) / len(questions)
-            expect(recall >= threshold,
-                   f"Recall@{K} {recall:.2f} < {threshold} on {len(questions)}; misses: {misses}")
+            expect(
+                recall >= threshold,
+                f"Recall@{K} {recall:.2f} < {threshold} on {len(questions)}; misses: {misses}",
+            )
             return f"Recall@{K} {recall:.2f} on {len(questions)} questions (mode {mode})"
 
         await step(report, "retrieval: known question returns chunks", known_question)
@@ -300,14 +344,21 @@ async def check_products(db: AsyncClient, settings: Settings, report: Report) ->
     async def real_shop():
         today = date.today().isoformat()
         res = await (
-            db.table("medicine_batches").select("medicine_id")
-            .gt("quantity", 0).gt("expiry_date", today).limit(1).execute()
+            db.table("medicine_batches")
+            .select("medicine_id")
+            .gt("quantity", 0)
+            .gt("expiry_date", today)
+            .limit(1)
+            .execute()
         )
         if not res.data:
             return "SKIPPED: no medicine in stock"
         med = (
-            await db.table("medicines").select("id,name,generic_name")
-            .eq("id", res.data[0]["medicine_id"]).single().execute()
+            await db.table("medicines")
+            .select("id,name,generic_name")
+            .eq("id", res.data[0]["medicine_id"])
+            .single()
+            .execute()
         ).data
         if not search_words([med["name"]]):
             return "SKIPPED: first stocked medicine has no searchable name"
@@ -319,11 +370,15 @@ async def check_products(db: AsyncClient, settings: Settings, report: Report) ->
             batch = (
                 await db.table("medicine_batches")
                 .select("medicine_id,pharmacy_id,quantity,expiry_date,selling_price")
-                .eq("id", card.batch_id).single().execute()
+                .eq("id", card.batch_id)
+                .single()
+                .execute()
             ).data
             expect(batch["medicine_id"] == card.medicine_id, "card medicine != batch medicine")
-            expect(batch["pharmacy_id"] == card.pharmacy_id and bool(card.pharmacy_name),
-                   "card pharmacy != batch pharmacy")
+            expect(
+                batch["pharmacy_id"] == card.pharmacy_id and bool(card.pharmacy_name),
+                "card pharmacy != batch pharmacy",
+            )
             expect(batch["quantity"] > 0 and batch["expiry_date"] > today, "batch not sellable")
             expect(float(batch["selling_price"]) == card.price, "card price != batch price")
         if med["generic_name"]:
@@ -350,8 +405,11 @@ def guard_scores(expected: list[str], predicted: list[str]) -> dict[str, tuple[f
     for cat in CATEGORIES:
         tp = sum(e == p == cat for e, p in zip(expected, predicted, strict=True))
         predicted_n, support = predicted.count(cat), expected.count(cat)
-        out[cat] = (tp / predicted_n if predicted_n else 1.0, tp / support if support else 1.0,
-                    support)
+        out[cat] = (
+            tp / predicted_n if predicted_n else 1.0,
+            tp / support if support else 1.0,
+            support,
+        )
     return out
 
 
@@ -393,8 +451,10 @@ async def check_llm(db: AsyncClient, settings: Settings, report: Report) -> None
         text = await llm.ainvoke(PING)
         expect(bool(text.strip()), "empty answer")
         got = llm.last_usage
-        expect(got is not None and got.model == expected.model,
-               f"answered by {got.model if got else None}, expected {expected.model}")
+        expect(
+            got is not None and got.model == expected.model,
+            f"answered by {got.model if got else None}, expected {expected.model}",
+        )
         return f"{got.provider}/{got.model}"
 
     async def main_busy():
@@ -413,8 +473,9 @@ async def check_llm(db: AsyncClient, settings: Settings, report: Report) -> None
 
     async def burst():
         loaded = await embedded_drugs(db)
-        questions = [q["question"] for q in read_csv("questions.csv")
-                     if q["expected_drug"].lower() in loaded][:BURST]
+        questions = [
+            q["question"] for q in read_csv("questions.csv") if q["expected_drug"].lower() in loaded
+        ][:BURST]
         if not questions:
             return "SKIPPED: no golden question has its drug loaded yet"
         async with httpx.AsyncClient(timeout=30) as http:
@@ -428,11 +489,15 @@ async def check_llm(db: AsyncClient, settings: Settings, report: Report) -> None
                 except AllProvidersBusy:
                     busy += 1
                 times.append(time.perf_counter() - start)
-        print(f"\n  burst: {len(questions)} questions, answered {answered}, 429 {busy}, "
-              f"median {statistics.median(times):.1f} s, max {max(times):.1f} s")
+        print(
+            f"\n  burst: {len(questions)} questions, answered {answered}, 429 {busy}, "
+            f"median {statistics.median(times):.1f} s, max {max(times):.1f} s"
+        )
         expect(answered + busy >= len(questions) - 1, "more than one no-evidence answer")
-        return f"answered {answered}/{len(questions)}, 429 {busy}, " \
-               f"median {statistics.median(times):.1f} s"
+        return (
+            f"answered {answered}/{len(questions)}, 429 {busy}, "
+            f"median {statistics.median(times):.1f} s"
+        )
 
     await step(report, "llm: main model busy -> Groq backup answers", main_busy)
     await step(report, "llm: both Groq models busy -> Gemini answers", groq_busy)
@@ -456,19 +521,34 @@ async def running_app(
     app = create_app(settings)
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=raise_app_exceptions)
-        async with httpx.AsyncClient(transport=transport, base_url="http://app",
-                                     timeout=120) as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://app", timeout=120
+        ) as client:
             yield client
 
 
 async def seed_questions(db: AsyncClient, user_id: str, n: int) -> None:
     """One `[check]` session with n user questions created now (counted by the rate limit)."""
-    session = (await db.table("chat_sessions").insert(
-        {"user_id": user_id, "title": f"{PREFIX} rate limit"}).execute()).data[0]
-    await db.table("chat_messages").insert([
-        {"session_id": session["id"], "user_id": user_id, "role": "user",
-         "content": f"{PREFIX} q{i}"} for i in range(n)
-    ]).execute()
+    session = (
+        await db.table("chat_sessions")
+        .insert({"user_id": user_id, "title": f"{PREFIX} rate limit"})
+        .execute()
+    ).data[0]
+    await (
+        db.table("chat_messages")
+        .insert(
+            [
+                {
+                    "session_id": session["id"],
+                    "user_id": user_id,
+                    "role": "user",
+                    "content": f"{PREFIX} q{i}",
+                }
+                for i in range(n)
+            ]
+        )
+        .execute()
+    )
 
 
 async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None:
@@ -488,8 +568,9 @@ async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None
         prod = settings.model_copy(update={"app_env": "prod", "cors_origins": site})
         for enable, expected in ((False, 404), (True, 200)):
             app = create_app(prod.model_copy(update={"enable_docs": enable}))
-            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
-                                         base_url="http://app") as client:
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://app"
+            ) as client:
                 for path in ("/docs", "/openapi.json"):
                     got = (await client.get(path)).status_code
                     expect(got == expected, f"ENABLE_DOCS={enable}: {path} {got}")
@@ -526,9 +607,14 @@ async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None
             return "SKIPPED: CHECK_USER_EMAIL not set"
         limit = parse_limit(settings.rate_limit)
         await delete_check_sessions(db, user["id"])
-        used = len(await recent_question_times(
-            db, user["id"], datetime.now(UTC) - timedelta(seconds=limit.get_expiry()),
-            limit.amount))
+        used = len(
+            await recent_question_times(
+                db,
+                user["id"],
+                datetime.now(UTC) - timedelta(seconds=limit.get_expiry()),
+                limit.amount,
+            )
+        )
         try:
             await seed_questions(db, user["id"], max(0, limit.amount - used))
             body = {"question": f"{PREFIX} what is ibuprofen used for"}
@@ -554,8 +640,9 @@ async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None
         try:
             async with running_app(settings) as c:
                 logging.getLogger().addHandler(handler)  # after create_app set up logging
-                res = await c.post("/ask", json={"question": question},
-                                   headers={"X-User-Id": user["id"]})
+                res = await c.post(
+                    "/ask", json={"question": question}, headers={"X-User-Id": user["id"]}
+                )
                 expect(res.status_code == 200, f"/ask {res.status_code}")
                 answer = res.json()["answer"]
         finally:
@@ -565,8 +652,11 @@ async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None
         expect(LOG_MARKER not in logs, "the question text is in the logs")
         snippet = answer.strip()[:30]
         expect(len(snippet) < 10 or snippet not in logs, "the answer text is in the logs")
-        access = [json.loads(line) for line in logs.splitlines()
-                  if '"medassist.access"' in line and '"/ask"' in line]
+        access = [
+            json.loads(line)
+            for line in logs.splitlines()
+            if '"medassist.access"' in line and '"/ask"' in line
+        ]
         expect(len(access) == 1, f"{len(access)} access lines for /ask")
         line = access[0]
         for key in ("request_id", "path", "status", "latency_ms", "user_id", "route", "tokens"):
@@ -587,8 +677,13 @@ CAMEL = re.compile(r"^[a-z][a-zA-Z0-9]*$")
 SAFE_500 = {"status": 500, "message": "Internal server error"}
 BAD_GEMINI_KEY = "zqx-invalid-check-key"  # must never show up in an error or a log
 # Lines of the system prompts: none of them may come back in an answer.
-PROMPT_LINES = ("You are MedAssist", "<context>", "# Grounding", "ONE JSON object",
-                "You classify a customer's message")
+PROMPT_LINES = (
+    "You are MedAssist",
+    "<context>",
+    "# Grounding",
+    "ONE JSON object",
+    "You classify a customer's message",
+)
 
 
 def non_camel_keys(data: object, path: str = "") -> list[str]:
@@ -679,13 +774,17 @@ async def check_edge(db: AsyncClient, settings: Settings, report: Report) -> Non
     async def dead_database():
         broken = settings.model_copy(update={"supabase_url": "http://127.0.0.1:9"})
         # logs captured AFTER create_app: it replaces the root handlers
-        async with running_app(broken, raise_app_exceptions=False) as c, \
-                captured_logs() as logs:
-            res = await c.post("/ask", json={"question": f"{PREFIX} what is ibuprofen"},
-                               headers={"X-User-Id": str(uuid4())})
+        async with running_app(broken, raise_app_exceptions=False) as c, captured_logs() as logs:
+            res = await c.post(
+                "/ask",
+                json={"question": f"{PREFIX} what is ibuprofen"},
+                headers={"X-User-Id": str(uuid4())},
+            )
         expect_safe_500(res, "/ask with a dead database")
-        expect(any(r.levelno >= logging.ERROR and r.exc_info for r in logs.records),
-               "the error was not logged with its stack")
+        expect(
+            any(r.levelno >= logging.ERROR and r.exc_info for r in logs.records),
+            "the error was not logged with its stack",
+        )
         return "500 {status, message} only; stack in the log"
 
     async def gemini_down_agent():
@@ -724,16 +823,18 @@ async def check_edge(db: AsyncClient, settings: Settings, report: Report) -> Non
         drug = "onasemnogene abeparvovec"
         expect(drug.split()[0] not in loaded, f"{drug} is loaded; pick another drug")
         async with httpx.AsyncClient(timeout=30) as http:
-            result = await run_agent(f"What are the side effects of {drug}?",
-                                     create_rag_deps(db, settings, http))
+            result = await run_agent(
+                f"What are the side effects of {drug}?", create_rag_deps(db, settings, http)
+            )
         expect(result.route == "no_evidence", f"route {result.route}")
         expect(result.citations == [], "citations on a no-evidence answer")
         expect(result.text.startswith(NO_EVIDENCE_TEXT["en"]), f"text {result.text[:80]!r}")
         return "no_evidence, fixed text, no citations"
 
     async def empty_search():
-        hits = await hybrid_search(db, [0.0] * (settings.embed_dim - 1) + [1.0], "ibuprofen",
-                                   drug_filter="zzqxnotadrug")
+        hits = await hybrid_search(
+            db, [0.0] * (settings.embed_dim - 1) + [1.0], "ibuprofen", drug_filter="zzqxnotadrug"
+        )
         expect(hits == [], f"{len(hits)} hits")
         return "[]"
 
@@ -746,16 +847,20 @@ async def check_edge(db: AsyncClient, settings: Settings, report: Report) -> Non
 
     user = await find_user(db, "CHECK_USER_EMAIL", ("user", "doctor", "vendor", "admin"))
     if user is None:
-        for name in ("bad input -> 422 / 404", "Gemini down through the API",
-                     "client drops the SSE stream"):
+        for name in (
+            "bad input -> 422 / 404",
+            "Gemini down through the API",
+            "client drops the SSE stream",
+        ):
             report.add(f"edge: {name}", "SKIPPED", "CHECK_USER_EMAIL not set")
         return
     me = {"X-User-Id": user["id"]}
 
     async def bad_input():
         await delete_check_sessions(db, user["id"])
-        before = len((await db.table("chat_sessions").select("id")
-                      .eq("user_id", user["id"]).execute()).data)
+        before = len(
+            (await db.table("chat_sessions").select("id").eq("user_id", user["id"]).execute()).data
+        )
         async with running_app(settings) as c:
             res = await c.get("/sessions/not-a-uuid/messages", headers=me)
             expect(res.status_code == 422, f"bad uuid {res.status_code}")
@@ -768,13 +873,17 @@ async def check_edge(db: AsyncClient, settings: Settings, report: Report) -> Non
             res = await c.post("/ask", json={"question": huge}, headers=me)
             expect(res.status_code == 422, f"501+ chars {res.status_code}")
             expect("question" in res.json()["message"], f"422 message {res.json()}")
-            res = await c.post("/ask/stream", content=b'{"question": "x"', headers={
-                **me, "Content-Type": "application/json"})
+            res = await c.post(
+                "/ask/stream",
+                content=b'{"question": "x"',
+                headers={**me, "Content-Type": "application/json"},
+            )
             expect(res.status_code == 422, f"malformed JSON {res.status_code}")
             res = await c.post("/ask", json={"question": "   "}, headers=me)
             expect(res.status_code == 422, f"blank question {res.status_code}")
-        after = len((await db.table("chat_sessions").select("id")
-                     .eq("user_id", user["id"]).execute()).data)
+        after = len(
+            (await db.table("chat_sessions").select("id").eq("user_id", user["id"]).execute()).data
+        )
         expect(after == before, f"{after - before} session(s) stored for rejected input")
         return "bad uuid 422, unknown ids 404, >500 chars / blank / bad JSON 422, nothing stored"
 
@@ -782,8 +891,10 @@ async def check_edge(db: AsyncClient, settings: Settings, report: Report) -> Non
         await delete_check_sessions(db, user["id"])
         body = {"question": f"{PREFIX} What are the side effects of ibuprofen?"}
         try:
-            async with running_app(bad_gemini, raise_app_exceptions=False) as c, \
-                    captured_logs() as logs:
+            async with (
+                running_app(bad_gemini, raise_app_exceptions=False) as c,
+                captured_logs() as logs,
+            ):
                 plain = await c.post("/ask", json=body, headers=me)
                 stream = await c.post("/ask/stream", json=body, headers=me)
         finally:
@@ -799,8 +910,11 @@ async def check_edge(db: AsyncClient, settings: Settings, report: Report) -> Non
         await delete_check_sessions(db, user["id"])
         body = {"question": f"{PREFIX} What are the common side effects of ibuprofen?"}
         try:
-            async with served_app(settings) as url, captured_logs() as logs, \
-                    httpx.AsyncClient(base_url=url, timeout=120) as c:
+            async with (
+                served_app(settings) as url,
+                captured_logs() as logs,
+                httpx.AsyncClient(base_url=url, timeout=120) as c,
+            ):
                 got_token = False
                 async with c.stream("POST", "/ask/stream", json=body, headers=me) as res:
                     expect(res.status_code == 200, f"/ask/stream {res.status_code}")
@@ -841,12 +955,17 @@ def rpc_calls() -> list[tuple[str, str, list[str]]]:
     calls = []
     for path in sorted((ROOT / "app").rglob("*.py")):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "rpc"):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "rpc"
+            ):
                 where = f"{path.relative_to(ROOT).as_posix()}:{node.lineno}"
                 name, params = node.args[0], node.args[1] if len(node.args) > 1 else None
-                expect(isinstance(name, ast.Constant) and isinstance(params, ast.Dict),
-                       f"{where}: rpc name / params are not literals (cannot be checked)")
+                expect(
+                    isinstance(name, ast.Constant) and isinstance(params, ast.Dict),
+                    f"{where}: rpc name / params are not literals (cannot be checked)",
+                )
                 keys = [k.value for k in params.keys if isinstance(k, ast.Constant)]
                 calls.append((where, name.value, keys))
     return calls
@@ -859,8 +978,10 @@ async def check_contract(db: AsyncClient, settings: Settings, report: Report) ->
         expect(bool(calls), "no rpc call found in app/")
         for where, name, keys in calls:
             expect(name in documented, f"{where}: {name} is not in docs/DB_SCHEMA.md")
-            expect(set(keys) == set(documented[name]),
-                   f"{where}: {name}({sorted(keys)}) != DB {documented[name]}")
+            expect(
+                set(keys) == set(documented[name]),
+                f"{where}: {name}({sorted(keys)}) != DB {documented[name]}",
+            )
         return ", ".join(sorted({f"{n}({len(k)})" for _, n, k in calls}))
 
     await step(report, "contract: RPC parameter names == docs/DB_SCHEMA.md", rpc_names)
@@ -882,8 +1003,10 @@ async def check_contract(db: AsyncClient, settings: Settings, report: Report) ->
             events = parse_sse(res.text)
             names = [n for n, _ in events]
             tokens = names.count("token")
-            expect(tokens >= 1 and names == ["token"] * tokens + ["citations", "meta", "done"],
-                   f"events {names[:3]}..{names[-4:]}")
+            expect(
+                tokens >= 1 and names == ["token"] * tokens + ["citations", "meta", "done"],
+                f"events {names[:3]}..{names[-4:]}",
+            )
             text = "".join(d["text"] for n, d in events if n == "token")
             citations, meta = events[-3][1], events[-2][1]
             for part in (citations, meta):
@@ -895,8 +1018,10 @@ async def check_contract(db: AsyncClient, settings: Settings, report: Report) ->
             answer = next(m for m in stored.json() if m["id"] == meta["messageId"])
             expect(answer["content"] == text, "streamed text != stored message")
         state.update(session=meta["sessionId"], message=meta["messageId"])
-        return f"{tokens} tokens -> citations ({len(citations)}) -> meta -> done, " \
-               f"route {meta['route']}"
+        return (
+            f"{tokens} tokens -> citations ({len(citations)}) -> meta -> done, "
+            f"route {meta['route']}"
+        )
 
     async def camel_everywhere():
         if "session" not in state:
@@ -904,6 +1029,7 @@ async def check_contract(db: AsyncClient, settings: Settings, report: Report) ->
         checked = []
         try:
             async with running_app(settings) as c:
+
                 async def get(method: str, url: str, expected: int, **kw):
                     res = await c.request(method, url, headers=kw.pop("headers", me), **kw)
                     expect(res.status_code == expected, f"{method} {url}: {res.status_code}")
@@ -912,18 +1038,25 @@ async def check_contract(db: AsyncClient, settings: Settings, report: Report) ->
                     checked.append(f"{method} {url.split('/')[1]} {expected}")
                     return res
 
-                await get("POST", "/ask", 200, json={
-                    "question": f"{PREFIX} What is ibuprofen used for?",
-                    "sessionId": state["session"]})
+                await get(
+                    "POST",
+                    "/ask",
+                    200,
+                    json={
+                        "question": f"{PREFIX} What is ibuprofen used for?",
+                        "sessionId": state["session"],
+                    },
+                )
                 await get("GET", "/sessions", 200)
                 await get("GET", f"/sessions/{state['session']}/messages", 200)
-                await get("POST", f"/messages/{state['message']}/feedback", 204,
-                          json={"rating": 1})
+                await get("POST", f"/messages/{state['message']}/feedback", 204, json={"rating": 1})
                 await get("GET", "/sessions", 401, headers={})
                 await get("GET", f"/sessions/{uuid4()}/messages", 404)
                 await get("POST", "/ask", 422, json={"question": ""})
-                staff = user["role"] in {*settings.staff_all_access_roles,
-                                         *settings.staff_vendor_roles}
+                staff = user["role"] in {
+                    *settings.staff_all_access_roles,
+                    *settings.staff_vendor_roles,
+                }
                 await get("GET", "/escalations", 200 if staff else 403)
                 await get("GET", "/insights", 200 if staff else 403)
         finally:
@@ -932,13 +1065,21 @@ async def check_contract(db: AsyncClient, settings: Settings, report: Report) ->
 
     await step(report, "contract: SSE order + citations", sse_order)
     await step(report, "contract: camelCase on every response", camel_everywhere)
+    await delete_check_sessions(db, user["id"])  # also when the SSE check failed half-way
 
 
 # ---------- runner ----------
 
-GROUPS = {"db": check_db, "retrieval": check_retrieval, "products": check_products,
-          "guard": check_guard, "llm": check_llm, "api": check_api, "edge": check_edge,
-          "contract": check_contract}
+GROUPS = {
+    "db": check_db,
+    "retrieval": check_retrieval,
+    "products": check_products,
+    "guard": check_guard,
+    "llm": check_llm,
+    "api": check_api,
+    "edge": check_edge,
+    "contract": check_contract,
+}
 
 
 async def step(report: Report, name: str, fn) -> None:
@@ -949,7 +1090,9 @@ async def step(report: Report, name: str, fn) -> None:
             report.add(name, "SKIPPED", detail.removeprefix("SKIPPED: "))
         else:
             report.add(name, "PASS", detail)
-    except (StepFailed, APIError, httpx.HTTPError) as exc:
+    # Any error (also AllProvidersBusy when a real quota is used up) is one FAIL row; the other
+    # checks still run.
+    except Exception as exc:
         report.add(name, "FAIL", f"{type(exc).__name__}: {exc}")
 
 

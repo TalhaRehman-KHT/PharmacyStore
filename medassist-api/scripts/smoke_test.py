@@ -159,12 +159,16 @@ async def run(http: httpx.AsyncClient, db: AsyncClient, report: Report) -> None:
         expect(meta.get("route") == "knowledge", f"route={meta.get('route')}")
         expect(len(citations) >= 1, "no citations")
         drugs = sorted({c["drug"] for c in citations})
-        return (f"{names.count('token')} tokens, route={meta.get('route')}, "
-                f"{len(citations)} citation(s) {drugs}, {meta.get('latencyMs')} ms")
+        return (
+            f"{names.count('token')} tokens, route={meta.get('route')}, "
+            f"{len(citations)} citation(s) {drugs}, {meta.get('latencyMs')} ms"
+        )
 
     async def ask_dose():
-        body = {"question": f"{PREFIX} Mujhe kitni dose leni chahiye?",
-                "sessionId": state["session_id"]}
+        body = {
+            "question": f"{PREFIX} Mujhe kitni dose leni chahiye?",
+            "sessionId": state["session_id"],
+        }
         if pharmacy_id:
             body["pharmacyId"] = pharmacy_id
         res = await http.post("/ask", json=body, headers=as_customer)
@@ -224,8 +228,10 @@ async def run(http: httpx.AsyncClient, db: AsyncClient, report: Report) -> None:
     async def customer_sees_reply():
         res = await http.get(f"/sessions/{state['session_id']}/messages", headers=as_customer)
         msgs = res.json()
-        expect(any(m["role"] == "pharmacist" and m["content"] == REPLY for m in msgs),
-               "no pharmacist message")
+        expect(
+            any(m["role"] == "pharmacist" and m["content"] == REPLY for m in msgs),
+            "no pharmacist message",
+        )
         dose = next(m for m in msgs if m["id"] == state["dose_message_id"])
         status = (dose.get("meta") or {}).get("escalationStatus")
         expect(status == "answered", f"escalationStatus={status}")
@@ -262,8 +268,10 @@ async def run(http: httpx.AsyncClient, db: AsyncClient, report: Report) -> None:
         await step("no X-User-Id -> 401", no_header)
     finally:
         removed = await cleanup(db, customer["id"])
-        print(f"\ncleanup: deleted {removed} [smoke] session(s) (messages, feedback, escalations"
-              " cascade)")
+        print(
+            f"\ncleanup: deleted {removed} [smoke] session(s) (messages, feedback, escalations"
+            " cascade)"
+        )
 
 
 async def main() -> int:

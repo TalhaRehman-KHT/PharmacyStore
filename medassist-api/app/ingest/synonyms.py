@@ -23,9 +23,7 @@ def propose_synonyms(rows: list[dict]) -> list[tuple[str, str, str, str]]:
         # A product named after its own generic (e.g. "Paracetamol 500mg") is not a synonym.
         if normalize_generic(row.get("name")) != parts:
             inn = " + ".join(clean_generic(row.get("generic_name")))
-            synonyms.setdefault(
-                (label, inn), (label, inn, " + ".join(parts), "product_table")
-            )
+            synonyms.setdefault((label, inn), (label, inn, " + ".join(parts), "product_table"))
     return sorted(synonyms.values())
 
 

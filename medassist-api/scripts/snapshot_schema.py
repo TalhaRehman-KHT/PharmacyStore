@@ -21,6 +21,7 @@ Usage (from medassist-api/):
 DATABASE_URL = Supabase > Project > Connect > "Session pooler" connection string (IPv4 friendly).
 Keep it in .env only. It is never printed or written by this script.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -46,17 +47,26 @@ def q(ident: str) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--schema", default="public")
     ap.add_argument("--sql-dir", default=str(ROOT / "sql" / "schema"))
     ap.add_argument("--docs", default=str(ROOT / "docs" / "DB_SCHEMA.md"))
-    ap.add_argument("--counts", action="store_true", help="include row counts in the markdown (creates diff noise)")
+    ap.add_argument(
+        "--counts",
+        action="store_true",
+        help="include row counts in the markdown (creates diff noise)",
+    )
     args = ap.parse_args()
 
     load_dotenv(ROOT / ".env")
     url = os.environ.get("DATABASE_URL")
     if not url:
-        print("DATABASE_URL is not set. Put it in medassist-api/.env (Supabase > Connect > Session pooler).", file=sys.stderr)
+        print(
+            "DATABASE_URL is not set. Put it in medassist-api/.env (Supabase > Connect > Session pooler).",
+            file=sys.stderr,
+        )
         return 2
 
     schema = args.schema
@@ -66,10 +76,18 @@ def main() -> int:
 
     try:
         # prepare_threshold=None keeps it compatible with Supabase's pgbouncer poolers
-        conn = psycopg.connect(url, row_factory=dict_row, prepare_threshold=None, connect_timeout=15)
+        conn = psycopg.connect(
+            url, row_factory=dict_row, prepare_threshold=None, connect_timeout=15
+        )
     except Exception as exc:  # never echo the URL
-        print(f"Could not connect: {type(exc).__name__}: {str(exc).splitlines()[0][:200]}", file=sys.stderr)
-        print("Tip: use the Session pooler string, URL-encode special characters in the password.", file=sys.stderr)
+        print(
+            f"Could not connect: {type(exc).__name__}: {str(exc).splitlines()[0][:200]}",
+            file=sys.stderr,
+        )
+        print(
+            "Tip: use the Session pooler string, URL-encode special characters in the password.",
+            file=sys.stderr,
+        )
         return 3
 
     with conn, conn.transaction():
@@ -83,55 +101,86 @@ def main() -> int:
         exts = rows("""select e.extname, n.nspname as sch from pg_extension e
                        join pg_namespace n on n.oid = e.extnamespace
                        where e.extname <> 'plpgsql' order by 1""")
-        enums = rows("""select t.typname, array_agg(e.enumlabel order by e.enumsortorder) as labels
+        enums = rows(
+            """select t.typname, array_agg(e.enumlabel order by e.enumsortorder) as labels
                         from pg_type t join pg_namespace n on n.oid = t.typnamespace
                         join pg_enum e on e.enumtypid = t.oid
-                        where n.nspname = %s group by 1 order by 1""", schema)
+                        where n.nspname = %s group by 1 order by 1""",
+            schema,
+        )
         out = [HEADER]
         for e in exts:
             if e["sch"] not in ("public", "pg_catalog"):
                 out.append(f"create schema if not exists {q(e['sch'])};")
-            out.append(f"create extension if not exists {q(e['extname'])} with schema {q(e['sch'])};")
+            out.append(
+                f"create extension if not exists {q(e['extname'])} with schema {q(e['sch'])};"
+            )
         for en in enums:
             labels = ", ".join("'" + x.replace("'", "''") + "'" for x in en["labels"])
             out.append(f"create type {q(schema)}.{q(en['typname'])} as enum ({labels});")
-        (out_dir / "00_extensions_and_types.sql").write_text("\n".join(out) + "\n", encoding="utf-8")
+        (out_dir / "00_extensions_and_types.sql").write_text(
+            "\n".join(out) + "\n", encoding="utf-8"
+        )
 
         # ---------- tables ----------
-        tables = rows("""select c.oid, c.relname, c.relrowsecurity, c.relforcerowsecurity
+        tables = rows(
+            """select c.oid, c.relname, c.relrowsecurity, c.relforcerowsecurity
                          from pg_class c join pg_namespace n on n.oid = c.relnamespace
                          where n.nspname = %s and c.relkind in ('r', 'p')
                            and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')
-                         order by c.relname""", schema)
-        views = rows("""select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
-                        where n.nspname = %s and c.relkind in ('v', 'm') order by 1""", schema)
+                         order by c.relname""",
+            schema,
+        )
+        views = rows(
+            """select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                        where n.nspname = %s and c.relkind in ('v', 'm') order by 1""",
+            schema,
+        )
 
         ddl_tables, ddl_fks, ddl_idx, ddl_trg = [HEADER], [HEADER], [HEADER], [HEADER]
         md_tables: list[str] = []
         warnings: list[str] = []
         if views:
-            warnings.append("Views/materialized views are NOT snapshotted: " + ", ".join(v["relname"] for v in views))
+            warnings.append(
+                "Views/materialized views are NOT snapshotted: "
+                + ", ".join(v["relname"] for v in views)
+            )
 
         for t in tables:
             name, oid = t["relname"], t["oid"]
-            cols = rows("""select a.attname, format_type(a.atttypid, a.atttypmod) as type, a.attnotnull,
+            cols = rows(
+                """select a.attname, format_type(a.atttypid, a.atttypmod) as type, a.attnotnull,
                                   a.attidentity, a.attgenerated, pg_get_expr(d.adbin, d.adrelid) as dflt
                            from pg_attribute a
                            left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
                            where a.attrelid = %s and a.attnum > 0 and not a.attisdropped
-                           order by a.attnum""", oid)
-            cons = rows("""select conname, contype, pg_get_constraintdef(oid) as def
+                           order by a.attnum""",
+                oid,
+            )
+            cons = rows(
+                """select conname, contype, pg_get_constraintdef(oid) as def
                            from pg_constraint where conrelid = %s and contype in ('p', 'u', 'c', 'x')
-                           order by case contype when 'p' then 1 when 'u' then 2 else 3 end, conname""", oid)
-            fks = rows("""select conname, pg_get_constraintdef(oid) as def from pg_constraint
-                          where conrelid = %s and contype = 'f' order by conname""", oid)
-            idx = rows("""select pg_get_indexdef(i.indexrelid) as def, c.relname as name
+                           order by case contype when 'p' then 1 when 'u' then 2 else 3 end, conname""",
+                oid,
+            )
+            fks = rows(
+                """select conname, pg_get_constraintdef(oid) as def from pg_constraint
+                          where conrelid = %s and contype = 'f' order by conname""",
+                oid,
+            )
+            idx = rows(
+                """select pg_get_indexdef(i.indexrelid) as def, c.relname as name
                           from pg_index i join pg_class c on c.oid = i.indexrelid
                           where i.indrelid = %s
                             and not exists (select 1 from pg_constraint k where k.conindid = i.indexrelid)
-                          order by c.relname""", oid)
-            trg = rows("""select pg_get_triggerdef(oid) as def, tgname from pg_trigger
-                          where tgrelid = %s and not tgisinternal order by tgname""", oid)
+                          order by c.relname""",
+                oid,
+            )
+            trg = rows(
+                """select pg_get_triggerdef(oid) as def, tgname from pg_trigger
+                          where tgrelid = %s and not tgisinternal order by tgname""",
+                oid,
+            )
 
             lines = []
             for c in cols:
@@ -139,29 +188,48 @@ def main() -> int:
                 if c["attgenerated"] == "s":
                     part += f" generated always as ({c['dflt']}) stored"
                 elif c["attidentity"] in ("a", "d"):
-                    part += " generated " + ("always" if c["attidentity"] == "a" else "by default") + " as identity"
+                    part += (
+                        " generated "
+                        + ("always" if c["attidentity"] == "a" else "by default")
+                        + " as identity"
+                    )
                 elif c["dflt"] is not None:
                     part += f" default {c['dflt']}"
                     if "nextval(" in c["dflt"]:
-                        warnings.append(f"{name}.{c['attname']} uses a sequence default; sequences are not snapshotted.")
+                        warnings.append(
+                            f"{name}.{c['attname']} uses a sequence default; sequences are not snapshotted."
+                        )
                 if c["attnotnull"]:
                     part += " not null"
                 lines.append(part)
             for k in cons:
                 lines.append(f"  constraint {q(k['conname'])} {k['def']}")
-            ddl_tables.append(f"create table {q(schema)}.{q(name)} (\n" + ",\n".join(lines) + "\n);\n")
+            ddl_tables.append(
+                f"create table {q(schema)}.{q(name)} (\n" + ",\n".join(lines) + "\n);\n"
+            )
             for f in fks:
-                ddl_fks.append(f"alter table {q(schema)}.{q(name)} add constraint {q(f['conname'])} {f['def']};")
+                ddl_fks.append(
+                    f"alter table {q(schema)}.{q(name)} add constraint {q(f['conname'])} {f['def']};"
+                )
             for i in idx:
                 ddl_idx.append(i["def"] + ";")
             for tr in trg:
                 ddl_trg.append(tr["def"] + ";")
 
             # markdown block
-            md = [f"### {name}", "", "| column | type | null | default |", "| --- | --- | --- | --- |"]
+            md = [
+                f"### {name}",
+                "",
+                "| column | type | null | default |",
+                "| --- | --- | --- | --- |",
+            ]
             for c in cols:
-                dflt = ("generated: " + c["dflt"]) if c["attgenerated"] == "s" else (c["dflt"] or "")
-                md.append(f"| {c['attname']} | {c['type']} | {'no' if c['attnotnull'] else 'yes'} | {dflt.replace('|', '/')} |")
+                dflt = (
+                    ("generated: " + c["dflt"]) if c["attgenerated"] == "s" else (c["dflt"] or "")
+                )
+                md.append(
+                    f"| {c['attname']} | {c['type']} | {'no' if c['attnotnull'] else 'yes'} | {dflt.replace('|', '/')} |"
+                )
             md.append("")
             for k in cons:
                 md.append(f"- {k['def']}")
@@ -171,8 +239,11 @@ def main() -> int:
                 md.append(f"- index `{i['name']}`")
             md.append(f"- RLS: {'on' if t['relrowsecurity'] else 'OFF'}")
             if args.counts:
-                n = conn.execute(sql.SQL("select count(*) as n from {}.{}").format(
-                    sql.Identifier(schema), sql.Identifier(name))).fetchone()["n"]
+                n = conn.execute(
+                    sql.SQL("select count(*) as n from {}.{}").format(
+                        sql.Identifier(schema), sql.Identifier(name)
+                    )
+                ).fetchone()["n"]
                 md.append(f"- rows: {n}")
             md_tables.append("\n".join(md))
 
@@ -182,60 +253,86 @@ def main() -> int:
         (out_dir / "50_triggers.sql").write_text("\n".join(ddl_trg) + "\n", encoding="utf-8")
 
         # ---------- functions + grants ----------
-        funcs = rows("""select p.oid, p.proname, pg_get_functiondef(p.oid) as def,
+        funcs = rows(
+            """select p.oid, p.proname, pg_get_functiondef(p.oid) as def,
                                pg_get_function_identity_arguments(p.oid) as args, p.proacl is not null as has_acl
                         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                         where n.nspname = %s and p.prokind in ('f', 'p')
                           and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
-                        order by p.proname, args""", schema)
+                        order by p.proname, args""",
+            schema,
+        )
         ddl_fn = [HEADER]
         md_fn = []
         for fn in funcs:
             ddl_fn.append(fn["def"].rstrip().rstrip(";") + ";\n")
             sig = f"{q(schema)}.{q(fn['proname'])}({fn['args']})"
             if fn["has_acl"]:
-                grants = rows("""select case when a.grantee = 0 then 'public' else r.rolname end as role
+                grants = rows(
+                    """select case when a.grantee = 0 then 'public' else r.rolname end as role
                                  from pg_proc p, aclexplode(p.proacl) a
                                  left join pg_roles r on r.oid = a.grantee
                                  where p.oid = %s and a.grantee <> p.proowner and a.privilege_type = 'EXECUTE'
-                                 order by 1""", fn["oid"])
+                                 order by 1""",
+                    fn["oid"],
+                )
                 roles = [g["role"] for g in grants]
-                ddl_fn.append(f"revoke all on function {sig} from public, anon, authenticated, service_role;")
+                ddl_fn.append(
+                    f"revoke all on function {sig} from public, anon, authenticated, service_role;"
+                )
                 if roles:
-                    ddl_fn.append(f"grant execute on function {sig} to {', '.join(q(r) if r != 'public' else 'public' for r in roles)};")
+                    ddl_fn.append(
+                        f"grant execute on function {sig} to {', '.join(q(r) if r != 'public' else 'public' for r in roles)};"
+                    )
                 ddl_fn.append("")
-                md_fn.append(f"- `{fn['proname']}({fn['args']})` executable by: {', '.join(roles) or 'owner only'}")
+                md_fn.append(
+                    f"- `{fn['proname']}({fn['args']})` executable by: {', '.join(roles) or 'owner only'}"
+                )
             else:
                 md_fn.append(f"- `{fn['proname']}({fn['args']})` default privileges")
         (out_dir / "40_functions.sql").write_text("\n".join(ddl_fn) + "\n", encoding="utf-8")
 
         # ---------- RLS + policies ----------
-        pols = rows("""select tablename, policyname, permissive, roles, cmd, qual, with_check
-                       from pg_policies where schemaname = %s order by tablename, policyname""", schema)
+        pols = rows(
+            """select tablename, policyname, permissive, roles, cmd, qual, with_check
+                       from pg_policies where schemaname = %s order by tablename, policyname""",
+            schema,
+        )
         ddl_rls = [HEADER]
         for t in tables:
             if t["relrowsecurity"]:
-                ddl_rls.append(f"alter table {q(schema)}.{q(t['relname'])} enable row level security;")
+                ddl_rls.append(
+                    f"alter table {q(schema)}.{q(t['relname'])} enable row level security;"
+                )
             if t["relforcerowsecurity"]:
-                ddl_rls.append(f"alter table {q(schema)}.{q(t['relname'])} force row level security;")
+                ddl_rls.append(
+                    f"alter table {q(schema)}.{q(t['relname'])} force row level security;"
+                )
         md_pol = []
         for p in pols:
             roles = ", ".join(p["roles"]) if p["roles"] else "public"
-            stmt = (f"create policy {q(p['policyname'])} on {q(schema)}.{q(p['tablename'])} "
-                    f"as {p['permissive'].lower()} for {p['cmd'].lower()} to {roles}")
+            stmt = (
+                f"create policy {q(p['policyname'])} on {q(schema)}.{q(p['tablename'])} "
+                f"as {p['permissive'].lower()} for {p['cmd'].lower()} to {roles}"
+            )
             if p["qual"]:
                 stmt += f"\n  using ({p['qual']})"
             if p["with_check"]:
                 stmt += f"\n  with check ({p['with_check']})"
             ddl_rls.append(stmt + ";")
-            md_pol.append(f"- `{p['tablename']}`: \"{p['policyname']}\" ({p['cmd']}) for {roles}")
+            md_pol.append(f'- `{p["tablename"]}`: "{p["policyname"]}" ({p["cmd"]}) for {roles}')
         (out_dir / "60_rls_policies.sql").write_text("\n".join(ddl_rls) + "\n", encoding="utf-8")
 
     # ---------- markdown ----------
-    md = ["# Database schema (generated)", "",
-          "Generated by `scripts/snapshot_schema.py` from the LIVE database. Do not edit by hand.",
-          "This file is the source of truth for table and column names: read it before writing any query.", "",
-          f"Schema: `{schema}`. Tables: {len(tables)}. Functions: {len(funcs)}. Policies: {len(pols)}.", ""]
+    md = [
+        "# Database schema (generated)",
+        "",
+        "Generated by `scripts/snapshot_schema.py` from the LIVE database. Do not edit by hand.",
+        "This file is the source of truth for table and column names: read it before writing any query.",
+        "",
+        f"Schema: `{schema}`. Tables: {len(tables)}. Functions: {len(funcs)}. Policies: {len(pols)}.",
+        "",
+    ]
     if exts:
         md += ["Extensions: " + ", ".join(f"{e['extname']} ({e['sch']})" for e in exts), ""]
     if warnings:

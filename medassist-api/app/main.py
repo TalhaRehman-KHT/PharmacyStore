@@ -53,9 +53,7 @@ async def lifespan(app: FastAPI):
         await http.aclose()
 
 
-def _error(
-    status: int, message: str, headers: dict | None = None, **extra: object
-) -> JSONResponse:
+def _error(status: int, message: str, headers: dict | None = None, **extra: object) -> JSONResponse:
     return JSONResponse(
         status_code=status,
         content={"status": status, "message": message, **extra},
@@ -67,10 +65,12 @@ async def _ready(app: FastAPI) -> list[str]:
     """Problems that make this instance unable to serve (empty list = ready)."""
     problems = []
     settings: Settings = app.state.settings
-    required = {"SUPABASE_URL": settings.supabase_url, "SUPABASE_SERVICE_KEY":
-                settings.supabase_service_key.get_secret_value(), "GROQ_API_KEY":
-                settings.groq_api_key.get_secret_value(), "GEMINI_API_KEY":
-                settings.gemini_api_key.get_secret_value()}
+    required = {
+        "SUPABASE_URL": settings.supabase_url,
+        "SUPABASE_SERVICE_KEY": settings.supabase_service_key.get_secret_value(),
+        "GROQ_API_KEY": settings.groq_api_key.get_secret_value(),
+        "GEMINI_API_KEY": settings.gemini_api_key.get_secret_value(),
+    }
     problems += [f"{name} missing" for name, value in required.items() if not value]
     db = getattr(app.state, "db", None)
     if db is None:

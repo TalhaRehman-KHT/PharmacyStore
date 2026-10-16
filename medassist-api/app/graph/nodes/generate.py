@@ -51,9 +51,7 @@ async def cited_answer(
     return (text if live else None), tokens
 
 
-async def generate(
-    state: AgentState, *, llm_factory: Callable, db, emit: Emit = _ignore
-) -> dict:
+async def generate(state: AgentState, *, llm_factory: Callable, db, emit: Emit = _ignore) -> dict:
     """Partial update: answer, citations, route, tokens, timings["generate"]."""
     start = time.perf_counter()
     language = state.get("language") or keyword_language(state["question"])

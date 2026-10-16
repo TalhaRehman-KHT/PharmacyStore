@@ -29,8 +29,9 @@ _TITLES = sorted(
 # and stays, because the title must be followed by whitespace.
 _LEADING_TITLE = re.compile(
     r"^\s*(?:\d+(?:\.\d+)*\s+)?(?:"
-    + "|".join(re.escape(t).replace(r"\ AND\ ", r"\s+(?:AND|&)\s+").replace(r"\ ", r"\s+")
-               for t in _TITLES)
+    + "|".join(
+        re.escape(t).replace(r"\ AND\ ", r"\s+(?:AND|&)\s+").replace(r"\ ", r"\s+") for t in _TITLES
+    )
     + r")(?=\s|$)"
 )
 _SPACES = re.compile(r"[ \t\r\f\v]+")

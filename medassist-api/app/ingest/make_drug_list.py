@@ -116,9 +116,7 @@ def render_report(r: DrugListResult) -> str:
 def write_outputs(r: DrugListResult, data_dir: Path = DATA_DIR) -> None:
     """Write drugs.txt, synonyms_proposed.csv and drug_report.md."""
     data_dir.mkdir(parents=True, exist_ok=True)
-    (data_dir / "drugs.txt").write_text(
-        "".join(f"{d}\n" for d in r.drugs), encoding="utf-8"
-    )
+    (data_dir / "drugs.txt").write_text("".join(f"{d}\n" for d in r.drugs), encoding="utf-8")
     write_synonyms_csv(data_dir / "synonyms_proposed.csv", r.synonyms)
     (data_dir / "drug_report.md").write_text(render_report(r), encoding="utf-8")
 

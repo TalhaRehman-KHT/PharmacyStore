@@ -10,6 +10,7 @@ Safety:
 - reads DATABASE_URL from the environment or medassist-api/.env and never prints it
 After a successful run, re-run `python -m scripts.snapshot_schema` and review the git diff.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,26 +25,47 @@ from scripts._env import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 SHOP_TABLES = [
-    "users", "otps", "pharmacies", "medicines", "medicine_batches", "orders", "order_items",
-    "carts", "cart_items", "prescriptions", "reminders", "reminder_times", "alerts",
+    "users",
+    "otps",
+    "pharmacies",
+    "medicines",
+    "medicine_batches",
+    "orders",
+    "order_items",
+    "carts",
+    "cart_items",
+    "prescriptions",
+    "reminders",
+    "reminder_times",
+    "alerts",
     "stock_transactions",
 ]
 _T = r"(?:public\.)?\"?(" + "|".join(SHOP_TABLES) + r")\"?\b"
 _IS = re.I | re.S
 FORBIDDEN = [
-    (re.compile(r"\b(alter|drop|truncate)\s+table\s+(if\s+exists\s+)?(only\s+)?" + _T, re.I),
-     "changes a shop table"),
+    (
+        re.compile(r"\b(alter|drop|truncate)\s+table\s+(if\s+exists\s+)?(only\s+)?" + _T, re.I),
+        "changes a shop table",
+    ),
     (re.compile(r"\binsert\s+into\s+" + _T, re.I), "inserts into a shop table"),
     (re.compile(r"\bupdate\s+(only\s+)?" + _T, re.I), "updates a shop table"),
     (re.compile(r"\bdelete\s+from\s+(only\s+)?" + _T, re.I), "deletes from a shop table"),
-    (re.compile(r"\b(create|drop|alter)\s+policy\b[^;]*?\bon\s+" + _T, _IS),
-     "changes a shop table policy"),
-    (re.compile(r"\b(create|drop)\s+trigger\b[^;]*?\bon\s+" + _T, _IS),
-     "adds/drops a trigger on a shop table"),
-    (re.compile(r"\b(grant|revoke)\b[^;]*?\bon\s+(table\s+)?" + _T, _IS),
-     "changes privileges on a shop table"),
-    (re.compile(r"\bdrop\s+(schema|database|extension)\b", re.I),
-     "drops a schema/database/extension"),
+    (
+        re.compile(r"\b(create|drop|alter)\s+policy\b[^;]*?\bon\s+" + _T, _IS),
+        "changes a shop table policy",
+    ),
+    (
+        re.compile(r"\b(create|drop)\s+trigger\b[^;]*?\bon\s+" + _T, _IS),
+        "adds/drops a trigger on a shop table",
+    ),
+    (
+        re.compile(r"\b(grant|revoke)\b[^;]*?\bon\s+(table\s+)?" + _T, _IS),
+        "changes privileges on a shop table",
+    ),
+    (
+        re.compile(r"\bdrop\s+(schema|database|extension)\b", re.I),
+        "drops a schema/database/extension",
+    ),
 ]
 
 

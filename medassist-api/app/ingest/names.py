@@ -15,9 +15,7 @@ US_NAMES_CSV = DATA_DIR / "us_names.csv"
 
 _BRACKETS = re.compile(r"\([^)]*\)|\[[^\]]*\]")
 _UNIT = r"(?:mcg|mg|g|kg|ml|l|iu|i\.u\.|units?|%|dose|doses|puffs?)"
-_STRENGTH = re.compile(
-    rf"\d+(?:[.,]\d+)?\s*{_UNIT}(?:\s*/\s*\d*(?:[.,]\d+)?\s*{_UNIT})?(?![a-z])"
-)
+_STRENGTH = re.compile(rf"\d+(?:[.,]\d+)?\s*{_UNIT}(?:\s*/\s*\d*(?:[.,]\d+)?\s*{_UNIT})?(?![a-z])")
 _CONCENTRATION = re.compile(r"\bw\s*/\s*[vw]\b")
 _BARE_NUMBER = re.compile(r"\b\d+(?:[.,]\d+)?\b")
 _SPLIT = re.compile(r"\s*(?:\+|/|&|,|\band\b|\bwith\b)\s*")

@@ -122,6 +122,4 @@ async def get_messages(db: AsyncClient, user_id: UUID, session_id: UUID) -> list
         escalations = {row["message_id"]: row for row in res.data}
 
     # Join in Python: look up each message's rating and escalation by id.
-    return [
-        message_out(row, ratings.get(row["id"]), escalations.get(row["id"])) for row in rows
-    ]
+    return [message_out(row, ratings.get(row["id"]), escalations.get(row["id"])) for row in rows]

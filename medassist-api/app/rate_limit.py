@@ -40,8 +40,9 @@ def ip_guard(request: Request) -> None:
     window = _ip_limiter.limiter
     if not window.hit(item, "ip", ip):
         reset_at, _ = window.get_window_stats(item, "ip", ip)
-        raise TooManyRequests(max(1, math.ceil(reset_at - datetime.now(UTC).timestamp())),
-                              IP_MESSAGE)
+        raise TooManyRequests(
+            max(1, math.ceil(reset_at - datetime.now(UTC).timestamp())), IP_MESSAGE
+        )
 
 
 def retry_after_s(times: list[datetime], limit: int, window_s: int, now: datetime) -> int | None:
@@ -61,8 +62,7 @@ async def ask_quota(
     item = parse(get_settings().rate_limit)
     window_s = item.get_expiry()
     now = datetime.now(UTC)
-    times = await recent_question_times(db, user.id, now - timedelta(seconds=window_s),
-                                        item.amount)
+    times = await recent_question_times(db, user.id, now - timedelta(seconds=window_s), item.amount)
     wait = retry_after_s(times, item.amount, window_s, now)
     if wait is not None:
         raise TooManyRequests(wait, ASK_MESSAGE)

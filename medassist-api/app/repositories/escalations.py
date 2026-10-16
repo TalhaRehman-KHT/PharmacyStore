@@ -106,8 +106,7 @@ async def list_escalations(
     citations = {m["id"]: m.get("citations") or [] for m in messages.data}
 
     return [
-        escalation_out(r, names.get(r["user_id"]), citations.get(r["message_id"], []))
-        for r in rows
+        escalation_out(r, names.get(r["user_id"]), citations.get(r["message_id"], [])) for r in rows
     ]
 
 

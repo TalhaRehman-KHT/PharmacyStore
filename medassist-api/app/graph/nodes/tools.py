@@ -190,14 +190,17 @@ async def search_products(
     cards = cards[:limit]
     for card in cards:
         if not card.in_stock and card.generic_name:
-            card.alternatives = await find_alternatives(
-                db,
-                card.generic_name,
-                exclude_ids=[c.medicine_id for c in cards],
-                pharmacy_id=pharmacy_id,
-                currency=currency,
-                today=today,
-            ) or None
+            card.alternatives = (
+                await find_alternatives(
+                    db,
+                    card.generic_name,
+                    exclude_ids=[c.medicine_id for c in cards],
+                    pharmacy_id=pharmacy_id,
+                    currency=currency,
+                    today=today,
+                )
+                or None
+            )
     return cards
 
 
@@ -265,9 +268,7 @@ def shop_names(catalog: DrugCatalog, drug_names: Iterable[str]) -> list[str]:
     return out
 
 
-async def tools(
-    state: AgentState, *, db: AsyncClient, catalog: DrugCatalog, currency: str
-) -> dict:
+async def tools(state: AgentState, *, db: AsyncClient, catalog: DrugCatalog, currency: str) -> dict:
     """Partial update: product_results (ProductCard list), timings["tools"]. No LLM call."""
     start = time.perf_counter()
     names = shop_names(catalog, state.get("drug_names") or [])
