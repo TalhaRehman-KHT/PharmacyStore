@@ -21,6 +21,7 @@ class EscalationOut(CamelModel):
     status: EscalationStatus
     created_at: datetime
     sources: list[Citation]
+    ai_answer: str | None = None  # what the assistant told the customer (escalated message)
     reply: str | None = None
     answered_at: datetime | None = None
 

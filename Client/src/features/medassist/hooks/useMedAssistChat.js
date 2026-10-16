@@ -11,10 +11,21 @@ let localCounter = 0;
 const localId = (prefix) => `local-${prefix}-${Date.now().toString(36)}-${++localCounter}`;
 
 /**
+ * A stored question with no stored answer right after it (stopped or failed earlier) gets the
+ * 'failed' note, so a reloaded chat shows "Not answered" instead of a bare bubble (PR-10 B3).
+ * @param {ChatMessage[]} list
+ */
+const markUnanswered = (list) =>
+  list.map((m, i) =>
+    m.role === "user" && list[i + 1]?.role !== "assistant" ? { ...m, note: "failed" } : m
+  );
+
+/**
  * Chat state for one MedAssist conversation.
  * - status: 'loading' until the first token (or while a session loads), then 'streaming', then 'idle'.
  * - On error the user's question stays in the list; retry() removes it and asks again.
- * - Client-only `note` on a user message: 'failed' (no answer) or 'stopped' (user pressed Stop).
+ * - Client-only `note` on a user message: 'failed' (no answer; also set on load for stored
+ *   questions without an answer) or 'stopped' (user pressed Stop in this view).
  *
  * @param {{ initialSessionId?: string, onSessionCreated?: (sessionId: string) => void }} [options]
  */
@@ -176,7 +187,7 @@ export function useMedAssistChat({ initialSessionId, onSessionCreated } = {}) {
       try {
         const list = await medassistClient.getMessages(id);
         if (token !== loadTokenRef.current) return;
-        setMessages(list);
+        setMessages(markUnanswered(list));
         setStatus("idle");
       } catch (e) {
         if (token !== loadTokenRef.current) return;

@@ -2,6 +2,7 @@
 
 from app.schemas.chat import ChatMessageOut, ChatSessionOut, Citation
 from app.schemas.escalation import EscalationOut
+from app.services.language import detect_language
 
 
 def session_out(row: dict) -> ChatSessionOut:
@@ -36,6 +37,7 @@ def message_out(
             "products": row.get("products") or None,
             "latency_ms": row.get("latency_ms") or 0,
             "tokens": row.get("tokens"),
+            "language": detect_language(row["content"]),
         }
     return ChatMessageOut.model_validate(data)
 
@@ -46,11 +48,14 @@ def first_name(full_name: str | None) -> str:
     return parts[0] if parts else "Customer"
 
 
-def escalation_out(row: dict, customer_name: str | None, sources: list) -> EscalationOut:
+def escalation_out(row: dict, customer_name: str | None, message: dict | None) -> EscalationOut:
+    """`message` = the escalated assistant message (citations + content), None if missing."""
+    message = message or {}
     return EscalationOut.model_validate(
         {
             **row,
             "customer_first_name": first_name(customer_name),
-            "sources": [Citation.model_validate(s) for s in sources],
+            "sources": [Citation.model_validate(s) for s in message.get("citations") or []],
+            "ai_answer": message.get("content"),
         }
     )

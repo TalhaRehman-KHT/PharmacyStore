@@ -141,7 +141,7 @@ export default function UserAssistant() {
       <ConfirmDialog
         open={confirmOpen}
         title="Clear chat history?"
-        body="All your MedAssist chats will be deleted. This cannot be undone."
+        body="All your MedAssist chats will be removed from this list. This cannot be undone. Questions already sent to a pharmacist stay with the pharmacist."
         confirmLabel="Clear history"
         busy={clearing}
         busyLabel="Clearing…"

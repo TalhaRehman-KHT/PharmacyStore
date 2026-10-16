@@ -83,7 +83,7 @@ async def list_escalations(
 ) -> list[EscalationOut]:
     """Escalations with this status inside the caller's scope, newest first.
 
-    Three queries whatever the queue size (escalations, customer names, citations).
+    Three queries whatever the queue size (escalations, customer names, escalated messages).
     """
     query = (
         db.table("escalations")
@@ -101,13 +101,14 @@ async def list_escalations(
 
     message_ids = list({r["message_id"] for r in rows})
     messages = (
-        await db.table("chat_messages").select("id, citations").in_("id", message_ids).execute()
+        await db.table("chat_messages")
+        .select("id, citations, content")
+        .in_("id", message_ids)
+        .execute()
     )
-    citations = {m["id"]: m.get("citations") or [] for m in messages.data}
+    by_id = {m["id"]: m for m in messages.data}
 
-    return [
-        escalation_out(r, names.get(r["user_id"]), citations.get(r["message_id"], [])) for r in rows
-    ]
+    return [escalation_out(r, names.get(r["user_id"]), by_id.get(r["message_id"])) for r in rows]
 
 
 async def answer_escalation(

@@ -61,6 +61,8 @@ class AnswerMeta(CamelModel):
     products: list[ProductCard] | None = None
     latency_ms: int = Field(ge=0)
     tokens: int | None = Field(default=None, ge=0)  # LLM input + output tokens (None: no LLM call)
+    # language of the answer text (services/language.detect_language); the UI footer follows it
+    language: Literal["en", "roman_urdu"] = "en"
 
 
 class AskResponse(CamelModel):

@@ -32,6 +32,7 @@ function linkCitations(text) {
 
 const LIST_LINE = /^([-*+]|\d+[.)])\s/;
 const NOTE_LINE = /^\**note:/i;
+const FDA_ROUTES = new Set(["knowledge", "both"]);
 
 /**
  * The model writes "- bullet", then "Note: ..." and the disclaimer on the very next lines. Markdown would glue
@@ -246,8 +247,9 @@ export default function AssistantMessage({ message, streaming, onRate, onAdd, ad
         </div>
       )}
 
-      {/* An escalated message is not an FDA-label answer, so no label footer and nothing to rate. */}
-      {!meta?.escalated && <Disclaimer />}
+      {/* Only label-based answers get the FDA footer: not escalated, product, out-of-scope or
+          no-evidence messages (PR-10 B5). Shown once meta arrives, in the answer's language. */}
+      {!meta?.escalated && FDA_ROUTES.has(route) && <Disclaimer language={meta?.language} />}
       {done && (
         <div className="mt-1 flex items-center justify-between gap-2">
           <RelativeTime iso={message.createdAt} />

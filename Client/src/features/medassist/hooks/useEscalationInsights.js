@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { medassistClient, toApiError } from "../api/index.js";
-import { ESCALATIONS_CHANGED_EVENT } from "./useEscalations.js";
+import { ESCALATIONS_CHANGED_EVENT, fetchEscalations, shareInFlight } from "./useEscalations.js";
 
 const WEEK_MS = 7 * 24 * 60 * 60_000;
 const TOP_N = 5;
@@ -41,9 +41,9 @@ export function useEscalationInsights() {
     setError(null);
     try {
       const [pending, answered, stats] = await Promise.all([
-        medassistClient.listEscalations("pending"),
-        medassistClient.listEscalations("answered"),
-        medassistClient.getFeedbackStats(),
+        fetchEscalations("pending"),
+        fetchEscalations("answered"),
+        shareInFlight("insights", () => medassistClient.getFeedbackStats()),
       ]);
       if (request !== requestRef.current) return;
       setTopMeds(topMedicines([...pending, ...answered]));

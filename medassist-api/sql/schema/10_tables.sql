@@ -61,6 +61,7 @@ create table "public"."chat_sessions" (
   "title" text default 'New chat'::text not null,
   "created_at" timestamp with time zone default now() not null,
   "updated_at" timestamp with time zone default now() not null,
+  "deleted_at" timestamp with time zone,
   constraint "chat_sessions_pkey" PRIMARY KEY (id)
 );
 

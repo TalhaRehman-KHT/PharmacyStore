@@ -45,6 +45,7 @@
  * @property {ProductCard[]} [products]
  * @property {number} latencyMs
  * @property {number} [tokens] LLM input + output tokens (absent when no LLM was called)
+ * @property {'en' | 'roman_urdu'} [language] language of the answer text (footer language)
  */
 
 /**
@@ -77,6 +78,7 @@
  * @property {EscalationStatus} status
  * @property {string} createdAt ISO 8601
  * @property {Citation[]} sources
+ * @property {string} [aiAnswer] what the assistant told the customer (markdown)
  * @property {string} [reply]
  * @property {string} [answeredAt] ISO 8601
  */

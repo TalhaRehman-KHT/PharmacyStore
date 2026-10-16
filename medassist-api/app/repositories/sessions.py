@@ -1,5 +1,7 @@
-"""Chat sessions. Every query is filtered by the caller's verified user_id."""
+"""Chat sessions. Every query is filtered by the caller's verified user_id.
+A cleared session keeps its row (deleted_at is set) and is hidden from every read here."""
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from supabase import AsyncClient
@@ -17,6 +19,7 @@ async def list_sessions(db: AsyncClient, user_id: UUID) -> list[ChatSessionOut]:
         db.table("chat_sessions")
         .select("id, title, created_at, updated_at")
         .eq("user_id", str(user_id))
+        .is_("deleted_at", "null")
         .order("updated_at", desc=True)
         .limit(SESSION_LIMIT)
         .execute()
@@ -31,12 +34,13 @@ async def create_session(db: AsyncClient, user_id: UUID, title: str) -> ChatSess
 
 
 async def assert_owned(db: AsyncClient, user_id: UUID, session_id: UUID) -> None:
-    """Raise NotFound unless the session exists and belongs to user_id."""
+    """Raise NotFound unless the session exists, belongs to user_id and is not cleared."""
     res = await (
         db.table("chat_sessions")
         .select("id")
         .eq("id", str(session_id))
         .eq("user_id", str(user_id))
+        .is_("deleted_at", "null")
         .limit(1)
         .execute()
     )
@@ -45,5 +49,13 @@ async def assert_owned(db: AsyncClient, user_id: UUID, session_id: UUID) -> None
 
 
 async def delete_all_sessions(db: AsyncClient, user_id: UUID) -> None:
-    """Delete the caller's sessions; messages, feedback and escalations go with them (cascade)."""
-    await db.table("chat_sessions").delete().eq("user_id", str(user_id)).execute()
+    """'Clear history': hide the caller's sessions (soft delete, sql/016).
+    The rows stay, so the rate limit still counts the questions (B1) and pending escalations
+    still reach the pharmacist (B2)."""
+    await (
+        db.table("chat_sessions")
+        .update({"deleted_at": datetime.now(UTC).isoformat()})
+        .eq("user_id", str(user_id))
+        .is_("deleted_at", "null")
+        .execute()
+    )

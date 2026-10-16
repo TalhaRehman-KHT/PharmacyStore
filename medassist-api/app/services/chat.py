@@ -10,6 +10,7 @@ from app.observability import set_request_fields
 from app.rag.deps import RagDeps
 from app.repositories import Repos
 from app.schemas.chat import AnswerMeta, AskRequest, AskResponse
+from app.services.language import detect_language
 
 TITLE_LENGTH = 40
 HISTORY_MESSAGES = 4  # the last 2 question/answer pairs go into the prompt
@@ -95,6 +96,7 @@ async def answer_stream(
         products=result.products or None,
         latency_ms=latency_ms,
         tokens=result.tokens,
+        language=detect_language(result.text),
     )
     yield AskResponse(answer=result.text, citations=result.citations, meta=meta)
 

@@ -84,6 +84,7 @@ from app.rag.embed import embedder_from_settings
 from app.rag.rerank import Reranker
 from app.rag.retrieve import retrieve
 from app.rag.search import hybrid_search
+from app.repositories.escalations import EscalationScope, list_escalations
 from app.repositories.knowledge import chunk_inventory, list_documents
 from app.repositories.messages import recent_question_times
 from scripts._env import load_dotenv
@@ -248,6 +249,10 @@ async def check_db(db: AsyncClient, settings: Settings, report: Report) -> None:
                 "p_pharmacist": user["id"],
                 "p_reply": f"{PREFIX} pharmacist reply",
             }
+            queue = await list_escalations(db, "pending", EscalationScope(all_access=True))
+            mine = [e for e in queue if str(e.id) == seeded["escalation"]["id"]]
+            expect(len(mine) == 1, "seeded escalation not in the pending list")
+            expect(mine[0].ai_answer == f"{PREFIX} answer", f"aiAnswer {mine[0].ai_answer!r}")
             first = await db.rpc("answer_escalation", params).execute()
             second = await db.rpc("answer_escalation", params).execute()
             expect(first.data == seeded["escalation"]["id"], f"first answer {first.data!r}")
@@ -269,7 +274,9 @@ async def check_db(db: AsyncClient, settings: Settings, report: Report) -> None:
     await step(report, "db: tables have the documented columns", columns)
     await step(report, "db: drug_synonyms seeded", synonyms)
     await step(report, "db: anon key cannot reach private data", anon)
-    await step(report, "db: answer_escalation + session delete cascade", rpc_and_cascade)
+    await step(
+        report, "db: escalation list (aiAnswer) + answer_escalation + cascade", rpc_and_cascade
+    )
 
 
 # ---------- retrieval ----------
@@ -629,6 +636,55 @@ async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None
             await delete_check_sessions(db, user["id"])
         return f"{limit.amount} questions in the DB -> 429 on both instances, Retry-After {wait} s"
 
+    async def clear_history_soft():
+        """B1 + B2: DELETE /sessions hides chats but keeps the questions (rate limit) and the
+        pending escalation. The user's real chats are hidden for a moment and restored after."""
+        if user is None:
+            return "SKIPPED: CHECK_USER_EMAIL not set"
+        limit = parse_limit(settings.rate_limit)
+        since = datetime.now(UTC) - timedelta(seconds=limit.get_expiry())
+        await delete_check_sessions(db, user["id"])
+        visible = [
+            row["id"]
+            for row in (
+                await db.table("chat_sessions")
+                .select("id")
+                .eq("user_id", user["id"])
+                .is_("deleted_at", "null")
+                .execute()
+            ).data
+        ]
+        me = {"X-User-Id": user["id"]}
+        try:
+            seeded = await seed_conversation(db, user["id"])
+            before = len(await recent_question_times(db, user["id"], since, limit.amount))
+            async with running_app(settings) as c:
+                res = await c.delete("/sessions", headers=me)
+                expect(res.status_code == 204, f"DELETE /sessions {res.status_code}")
+                listed = (await c.get("/sessions", headers=me)).json()
+                expect(listed == [], f"{len(listed)} session(s) still listed")
+                res = await c.get(f"/sessions/{seeded['session']['id']}/messages", headers=me)
+                expect(res.status_code == 404, f"cleared session readable: {res.status_code}")
+            after = len(await recent_question_times(db, user["id"], since, limit.amount))
+            expect(after == before, f"rate limit count {before} -> {after} after clear")
+            esc = (
+                await db.table("escalations")
+                .select("status")
+                .eq("id", seeded["escalation"]["id"])
+                .execute()
+            ).data
+            expect(esc == [{"status": "pending"}], f"escalation after clear: {esc}")
+        finally:
+            if visible:
+                await (
+                    db.table("chat_sessions")
+                    .update({"deleted_at": None})
+                    .in_("id", visible)
+                    .execute()
+                )
+            await delete_check_sessions(db, user["id"])
+        return f"hidden + 404, rate count kept ({after}), escalation still pending"
+
     async def no_text_in_logs():
         if user is None:
             return "SKIPPED: CHECK_USER_EMAIL not set"
@@ -668,6 +724,7 @@ async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None
     await step(report, "api: API_PREFIX routing + X-Request-Id", prefix)
     await step(report, "api: /ready 200 / 503", ready)
     await step(report, "api: rate limit shared by two app instances", rate_limit_two_instances)
+    await step(report, "api: clear history keeps rate count + escalations", clear_history_soft)
     await step(report, "api: no question / answer text in the logs", no_text_in_logs)
 
 
@@ -1017,6 +1074,9 @@ async def check_contract(db: AsyncClient, settings: Settings, report: Report) ->
             stored = await c.get(f"/sessions/{meta['sessionId']}/messages", headers=me)
             answer = next(m for m in stored.json() if m["id"] == meta["messageId"])
             expect(answer["content"] == text, "streamed text != stored message")
+            expect(meta.get("language") == "en", f"meta.language {meta.get('language')!r}")
+            stored_lang = answer["meta"].get("language")
+            expect(stored_lang == meta["language"], f"stored meta.language {stored_lang!r}")
         state.update(session=meta["sessionId"], message=meta["messageId"])
         return (
             f"{tokens} tokens -> citations ({len(citations)}) -> meta -> done, "

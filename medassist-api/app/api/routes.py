@@ -170,7 +170,7 @@ async def get_messages(session_id: UUID, user: User, repos: ReposDep) -> list[Ch
 
 @router.delete("/sessions", status_code=status.HTTP_204_NO_CONTENT, tags=["sessions"])
 async def clear_history(user: User, repos: ReposDep) -> None:
-    """Delete all of the caller's sessions and messages."""
+    """Hide all of the caller's sessions (soft delete; pending pharmacist questions stay open)."""
     await repos.delete_all_sessions(user.id)
 
 

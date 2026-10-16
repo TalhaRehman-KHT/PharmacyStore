@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import toast from "react-hot-toast";
 import { BadgeCheck, SendHorizontal, X } from "lucide-react";
 import CitationList from "./CitationList.jsx";
@@ -87,6 +89,17 @@ export default function EscalationDrawer({ escalation, onClose, onReply, replyin
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Question</h4>
             <p className="mt-2 text-sm text-gray-900 whitespace-pre-wrap break-words">{escalation.question}</p>
           </section>
+
+          {escalation.aiAnswer && (
+            <section>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">What the AI told the customer</h4>
+              <div className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm text-text-primary break-words [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                  {escalation.aiAnswer}
+                </ReactMarkdown>
+              </div>
+            </section>
+          )}
 
           <section>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">What the AI retrieved</h4>
