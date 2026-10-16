@@ -1,0 +1,3 @@
+# Optional: FlashRank reranker (RERANK_ENABLED=true). Pulls onnxruntime + numpy + tokenizers (~180 MB),
+# so the Docker image installs it only with --build-arg WITH_RERANK=true. Dev installs it via requirements-dev.txt.
+flashrank==0.2.10

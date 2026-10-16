@@ -4,6 +4,7 @@ Every path lives under API_PREFIX ("" by default, e.g. "/medassist" behind a loa
 """
 
 import asyncio
+import importlib.util
 import logging
 from contextlib import asynccontextmanager
 
@@ -72,6 +73,8 @@ async def _ready(app: FastAPI) -> list[str]:
         "GEMINI_API_KEY": settings.gemini_api_key.get_secret_value(),
     }
     problems += [f"{name} missing" for name, value in required.items() if not value]
+    if settings.rerank_enabled and importlib.util.find_spec("flashrank") is None:
+        problems.append("RERANK_ENABLED but flashrank not installed (build with WITH_RERANK=true)")
     db = getattr(app.state, "db", None)
     if db is None:
         return [*problems, "database client not started"]

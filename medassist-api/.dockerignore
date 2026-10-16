@@ -1,9 +1,32 @@
+# Build context = medassist-api/. The Dockerfile copies only requirements.txt and app/;
+# this list keeps secrets and bulky folders out of the context entirely.
+
+# secrets (the example file is harmless)
 .env
+.env.*
+!.env.example
+
+# local tooling and caches
 .venv
 .git
-data
-.local
-notes
-prompts
+.ruff_cache
 __pycache__
 **/__pycache__
+**/*.pyc
+
+# not needed at runtime
+tests
+data
+eval
+notes
+docs
+prompts
+.local
+scripts
+sql
+deploy
+
+# docs: every .md except README
+*.md
+**/*.md
+!README.md

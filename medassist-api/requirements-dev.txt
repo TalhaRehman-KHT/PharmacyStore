@@ -1,3 +1,4 @@
 -r requirements.txt
+-r requirements-rerank.txt
 psycopg[binary]==3.3.6
 ruff==0.17.0
