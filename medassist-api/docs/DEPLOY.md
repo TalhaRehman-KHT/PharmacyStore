@@ -50,6 +50,9 @@ Scale the service to 0 tasks when not demoing to stop the Fargate cost.
 - [ ] `/medassist/prod/GEMINI_API_KEY`
 - [ ] `/medassist/prod/LANGSMITH_API_KEY` (optional)
 Not needed at runtime: `DATABASE_URL`, `SUPABASE_ANON_KEY`, `OPENFDA_API_KEY`, `SUPABASE_JWT_SECRET` (app_user_id mode).
+Two ways to fill them (both OK): by hand here, or GitHub Secrets `MEDASSIST_<NAME>`, which the deploy job copies into
+SSM (`--overwrite`). An empty GitHub secret is skipped, so a value set by hand stays. LangSmith: add it to SSM and to
+`deploy/task-definition.json` `secrets` together (a missing parameter stops the task from starting).
 
 ## 3. CloudWatch Logs
 - [ ] Log group `/ecs/medassist-api`, retention 14 days.
@@ -63,7 +66,8 @@ Not needed at runtime: `DATABASE_URL`, `SUPABASE_ANON_KEY`, `OPENFDA_API_KEY`, `
       `ecr:GetAuthorizationToken` (`*`); `ecr:BatchCheckLayerAvailability`, `ecr:InitiateLayerUpload`,
       `ecr:UploadLayerPart`, `ecr:CompleteLayerUpload`, `ecr:PutImage`, `ecr:BatchGetImage` on repo `medassist-api`;
       `ecs:DescribeTaskDefinition`, `ecs:RegisterTaskDefinition` (`*`); `ecs:UpdateService`, `ecs:DescribeServices`
-      on service `medassist-api-service`; `iam:PassRole` on the two roles above.
+      on service `medassist-api-service`; `iam:PassRole` on the two roles above;
+      `ssm:PutParameter` on `arn:aws:ssm:ap-southeast-2:<account>:parameter/medassist/prod/*` (secret sync).
 
 ## 5. Security group
 - [ ] `medassist-api-sg` (same VPC): inbound TCP 8000 from the ALB's security group only; outbound all.
@@ -74,7 +78,7 @@ Not needed at runtime: `DATABASE_URL`, `SUPABASE_ANON_KEY`, `OPENFDA_API_KEY`, `
 - [ ] Existing ALB, HTTP :80 listener: rule `Path = /medassist/*` -> forward `medassist-api-tg`, priority 10
       (before any catch-all). ALB idle timeout stays 60 s (pings keep SSE alive).
 
-## 7. ECS task definition + service (PR-12/13 add `deploy/task-definition.json`; first time by hand)
+## 7. ECS task definition + service (`deploy/task-definition.json`; create the service once by hand, CI updates it)
 - [ ] Family `medassist-api`, Fargate, Linux/X86_64, 0.5 vCPU, 1 GB; exec role + task role from step 4.
 - [ ] Container `medassist-api`, image `<account>.dkr.ecr.ap-southeast-2.amazonaws.com/medassist-api:latest`,
       port 8000, logs awslogs -> `/ecs/medassist-api`, prefix `medassist`.
@@ -100,12 +104,31 @@ Not needed at runtime: `DATABASE_URL`, `SUPABASE_ANON_KEY`, `OPENFDA_API_KEY`, `
 | kind | name | status |
 |---|---|---|
 | secret | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | exist, reused (CI user gets step 4 policy) |
+| secret (optional, synced to SSM) | `MEDASSIST_SUPABASE_URL`, `MEDASSIST_SUPABASE_SERVICE_KEY`, `MEDASSIST_GROQ_API_KEY`, `MEDASSIST_GEMINI_API_KEY` | new |
+| variable | `AWS_ACCOUNT_ID` (12 digits) | new |
+| variable | `MEDASSIST_EXEC_ROLE_ARN`, `MEDASSIST_TASK_ROLE_ARN` (full ARNs of the step 4 roles) | new |
+| variable | `MEDASSIST_CORS_ORIGINS` = `["https://<client origin>"]` (JSON list) | new |
+| variable | `MEDASSIST_PUBLIC_URL` = `https://<dxxxx>.cloudfront.net/medassist` (deploy calls `/ready` on it) | new |
 | variable | `VITE_MEDASSIST_API_URL` = `https://<dxxxx>.cloudfront.net/medassist` | new, used by the one Client line (PR-14) |
 | environment | `production` (manual approval) | exists, reused by the MedAssist deploy job |
-Fixed names (ECR repo, cluster, service, task family, container) go into the new workflow's `env:` block, like
-the existing workflow. No runtime secret goes into GitHub (they are in SSM).
+Fixed names (ECR repo, cluster, service, container) are in the `env:` block of `.github/workflows/medassist-api.yml`.
+
+## 9a. Workflow `.github/workflows/medassist-api.yml`
+- Runs on push / PR to `v4-fix` that touches `medassist-api/**` (same deploy branch as `ci-cd.yml`).
+- `test` (ruff check + format check + compileall; no pytest: no test suite since PR-02) -> `build` (buildx,
+  gha layer cache, tags `<sha>` + `latest`; pushed only on push; no secrets, no .env) -> `deploy` (push to `v4-fix`
+  only, `production` approval, one deploy at a time): secret sync -> fill placeholders -> new task definition
+  revision -> wait for service stability -> `GET $MEDASSIST_PUBLIC_URL/ready` must be 200.
 
 ## 10. Verify after the first deploy (PR-15)
 - [ ] `/medassist/health` and `/medassist/ready` = 200 through CloudFront.
 - [ ] Browser on the live Client: login, ask one question, tokens arrive one by one (SSE), no CORS error.
 - [ ] Vendor: escalations page loads. CloudWatch log lines are JSON and contain no question text.
+
+## 11. Roll back
+- Fast: ECS > `pharmacy-store-cluster` > `medassist-api-service` > Update service > Revision = the previous
+  `medassist-api:<N-1>` > Update. Or CLI:
+  `aws ecs update-service --cluster pharmacy-store-cluster --service medassist-api-service --task-definition medassist-api:<N-1>`
+- Each revision points at an image tagged with its git sha, so the old revision runs the old code.
+- The circuit breaker (step 7) already rolls back a deploy whose tasks never become healthy.
+- Secrets: SSM keeps the parameter history (Parameter Store > name > History) if a synced value was wrong.

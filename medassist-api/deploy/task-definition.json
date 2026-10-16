@@ -1,0 +1,66 @@
+{
+  "family": "medassist-api",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "512",
+  "memory": "1024",
+  "runtimePlatform": { "operatingSystemFamily": "LINUX", "cpuArchitecture": "X86_64" },
+  "executionRoleArn": "${MEDASSIST_EXEC_ROLE_ARN}",
+  "taskRoleArn": "${MEDASSIST_TASK_ROLE_ARN}",
+  "containerDefinitions": [
+    {
+      "name": "medassist-api",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/medassist-api:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "APP_ENV", "value": "prod" },
+        { "name": "API_PREFIX", "value": "/medassist" },
+        { "name": "CORS_ORIGINS", "value": "set-by-workflow" },
+        { "name": "AUTH_MODE", "value": "app_user_id" },
+        { "name": "FORWARDED_ALLOW_IPS", "value": "*" },
+        { "name": "LOG_LEVEL", "value": "INFO" },
+        { "name": "ENABLE_DOCS", "value": "false" },
+        { "name": "RERANK_ENABLED", "value": "false" }
+      ],
+      "secrets": [
+        {
+          "name": "SUPABASE_URL",
+          "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/medassist/prod/SUPABASE_URL"
+        },
+        {
+          "name": "SUPABASE_SERVICE_KEY",
+          "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/medassist/prod/SUPABASE_SERVICE_KEY"
+        },
+        {
+          "name": "GROQ_API_KEY",
+          "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/medassist/prod/GROQ_API_KEY"
+        },
+        {
+          "name": "GEMINI_API_KEY",
+          "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/medassist/prod/GEMINI_API_KEY"
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/medassist/health', timeout=4)"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/medassist-api",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "medassist"
+        }
+      }
+    }
+  ]
+}
