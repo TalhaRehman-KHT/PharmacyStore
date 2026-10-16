@@ -107,11 +107,22 @@ SSM (`--overwrite`). An empty GitHub secret is skipped, so a value set by hand s
 | secret (optional, synced to SSM) | `MEDASSIST_SUPABASE_URL`, `MEDASSIST_SUPABASE_SERVICE_KEY`, `MEDASSIST_GROQ_API_KEY`, `MEDASSIST_GEMINI_API_KEY` | new |
 | variable | `AWS_ACCOUNT_ID` (12 digits) | new |
 | variable | `MEDASSIST_EXEC_ROLE_ARN`, `MEDASSIST_TASK_ROLE_ARN` (full ARNs of the step 4 roles) | new |
-| variable | `MEDASSIST_CORS_ORIGINS` = `["https://<client origin>"]` (JSON list) | new |
+| variable | `MEDASSIST_CORS_ORIGINS` = `["https://d2a0oi7jgr4hty.cloudfront.net"]` (Client CloudFront; JSON list, exact origin, no trailing `/`; add a custom domain here if one comes) | new |
 | variable | `MEDASSIST_PUBLIC_URL` = `https://<dxxxx>.cloudfront.net/medassist` (deploy calls `/ready` on it) | new |
-| variable | `VITE_MEDASSIST_API_URL` = `https://<dxxxx>.cloudfront.net/medassist` | new, used by the one Client line (PR-14) |
+| variable | `VITE_MEDASSIST_API_URL` = `https://<dxxxx>.cloudfront.net/medassist` (same value; `<dxxxx>` = `medassist-api-cf`, step 8) | new, REQUIRED before the next Client deploy |
 | environment | `production` (manual approval) | exists, reused by the MedAssist deploy job |
 Fixed names (ECR repo, cluster, service, container) are in the `env:` block of `.github/workflows/medassist-api.yml`.
+
+## 9b. Client build (`ci-cd.yml`, PR-14)
+- Two lines in "Create Client .env": `VITE_MEDASSIST_API_URL=${{ vars.VITE_MEDASSIST_API_URL }}` and
+  `VITE_MEDASSIST_USE_MOCK=false` (fixed, mock never ships). Vite bakes both into `dist/` at build time.
+- Variable unset -> the bundle falls back to `http://localhost:8000` and MedAssist fails in the browser (rest of the
+  shop still works). Changing the value needs a Client rebuild, not only an API deploy.
+- Order: create `medassist-api-cf` (step 8) -> set `VITE_MEDASSIST_API_URL` -> push, so the Client build picks it up.
+- CORS: only `MEDASSIST_CORS_ORIGINS` gets CORS headers; another origin's preflight = 400 (`live_checks api`).
+- Local prod-style check: `$env:VITE_MEDASSIST_API_URL="http://localhost:8001/medassist"; $env:VITE_MEDASSIST_USE_MOCK="false"; npm run build; npm run preview`
+  with the container on 8001 (`API_PREFIX=/medassist`, `CORS_ORIGINS=["http://localhost:4173"]`); `dist/` must hold
+  the URL and no fixture text ("Demo Pharmacy").
 
 ## 9a. Workflow `.github/workflows/medassist-api.yml`
 - Runs on push / PR to `v4-fix` that touches `medassist-api/**` (same deploy branch as `ci-cd.yml`).

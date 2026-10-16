@@ -37,6 +37,8 @@ jobs:
           VITE_EMAILJS_PUBLIC_KEY=${{ secrets.VITE_EMAILJS_PUBLIC_KEY }}
           VITE_EMAILJS_SERVICE_ID=${{ secrets.VITE_EMAILJS_SERVICE_ID }}
           VITE_EMAILJS_TEMPLATE_ID=${{ secrets.VITE_EMAILJS_TEMPLATE_ID }}
+          VITE_MEDASSIST_API_URL=${{ vars.VITE_MEDASSIST_API_URL }}
+          VITE_MEDASSIST_USE_MOCK=false
           EOF
 
       - name: Create Server .env

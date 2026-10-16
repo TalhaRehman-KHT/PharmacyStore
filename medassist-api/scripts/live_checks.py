@@ -21,8 +21,9 @@ Groups:
              AllProvidersBusy (HTTP 429 in the API). Then 10 golden questions in a row through
              the full agent (no DB writes): answered / 429 / median time.
 - api:       real app instances in process (httpx ASGITransport, lifespan run): prod refuses bad
-             CORS_ORIGINS, /docs off in prod, API_PREFIX routing + X-Request-Id, /ready 200 and
-             503 (dead database URL). With CHECK_USER_EMAIL: `[check]` questions fill the user's
+             CORS_ORIGINS, only CORS_ORIGINS gets CORS headers (other origin: preflight 400),
+             /docs off in prod, API_PREFIX routing + X-Request-Id, /ready 200 and 503 (dead
+             database URL). With CHECK_USER_EMAIL: `[check]` questions fill the user's
              hourly limit -> 429 + Retry-After on two separate instances; one real /ask -> the
              logs hold no question / answer text and one access line with route + tokens.
 - edge:      error paths. Without a user: the retry rule (429 / 5xx retried, 4xx not), a dead
@@ -583,6 +584,30 @@ async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None
                     expect(got == expected, f"ENABLE_DOCS={enable}: {path} {got}")
         return "off in prod, on with ENABLE_DOCS=true"
 
+    async def prod_cors():
+        """Only the listed site gets CORS headers; any other origin is refused by the browser."""
+        prod = settings.model_copy(update={"app_env": "prod", "cors_origins": site})
+        app = create_app(prod)
+        preflight = {
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,x-user-id",
+        }
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://app"
+        ) as client:
+            ok = await client.options("/ask", headers={"Origin": site[0], **preflight})
+            expect(ok.status_code == 200, f"preflight from {site[0]}: {ok.status_code}")
+            allow = ok.headers.get("access-control-allow-origin")
+            expect(allow == site[0], f"allowed origin got allow-origin={allow}")
+            other = "https://evil.example.com"
+            bad = await client.options("/ask", headers={"Origin": other, **preflight})
+            expect(bad.status_code == 400, f"preflight from {other}: {bad.status_code}")
+            simple = await client.get("/health", headers={"Origin": other})
+            for res in (bad, simple):
+                leaked = res.headers.get("access-control-allow-origin")
+                expect(leaked is None, f"{other} got allow-origin={leaked}")
+        return f"{site[0]} allowed; other origin preflight 400, no allow-origin header"
+
     async def prefix():
         async with running_app(settings.model_copy(update={"api_prefix": "/medassist"})) as c:
             res = await c.get("/medassist/health")
@@ -720,6 +745,7 @@ async def check_api(db: AsyncClient, settings: Settings, report: Report) -> None
         return f"{len(logs.splitlines())} log lines, no text; access line route={line['route']}"
 
     await step(report, "api: prod refuses bad CORS_ORIGINS", prod_refusal)
+    await step(report, "api: prod CORS allows only CORS_ORIGINS", prod_cors)
     await step(report, "api: /docs off in prod unless ENABLE_DOCS", prod_docs)
     await step(report, "api: API_PREFIX routing + X-Request-Id", prefix)
     await step(report, "api: /ready 200 / 503", ready)

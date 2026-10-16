@@ -137,7 +137,8 @@ export const PRODUCTS = {
 };
 
 /** Two in-stock generic alternatives per drug, used by the out-of-stock scenario. */
-export const ALTERNATIVES = Object.fromEntries(
+// PURE IIFE: the whole computation can be dropped, so a production build (mock off) drops the fixtures.
+export const ALTERNATIVES = /* @__PURE__ */ (() => Object.fromEntries(
   Object.entries(PRODUCTS).map(([key, p]) => [
     key,
     [
@@ -161,7 +162,7 @@ export const ALTERNATIVES = Object.fromEntries(
       },
     ],
   ])
-);
+))();
 
 export const EMERGENCY_MESSAGE =
   "This may be a medical emergency. Call **1122** (Rescue) or go to the nearest emergency department now. " +

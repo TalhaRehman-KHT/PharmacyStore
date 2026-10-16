@@ -364,4 +364,5 @@ export function createMockClient(options = {}) {
   };
 }
 
-export const mockClient = createMockClient();
+// PURE: no side effects, so a production build (mock off) drops this file and the fixtures.
+export const mockClient = /* @__PURE__ */ createMockClient();
